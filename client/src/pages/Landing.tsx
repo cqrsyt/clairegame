@@ -7,7 +7,7 @@ export default function Landing() {
       <h1>星域棋庭</h1>
       <p>
         在虚空全息板上落子、推理、结盟。中国象棋、国际象棋、五子棋、飞行棋、跳棋本地 AI 可战；
-        狼人杀与阿瓦隆带机器人完整闭环；麻将简化可玩；其余星图图鉴与 Coming Soon 房间已就位。
+        狼人杀与阿瓦隆机器人闭环；麻将、斗地主、UNO 可对人机；Pages + Render 联机。
       </p>
       <div className="hero-cta">
         <Link className="btn" to="/library">进入星图库</Link>
@@ -18,7 +18,7 @@ export default function Landing() {
         <div style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '1rem' }}>
           {[
             ['本地 AI', '棋类完整可玩 + 教练高亮'],
-            ['剧本杀', '狼人杀 / 阿瓦隆 bots'],
+            ['牌类', '麻将 · 斗地主 · UNO'],
             ['联机', 'Socket.IO 房间码'],
             ['图鉴', '十四款星域桌游'],
           ].map(([t, d]) => (

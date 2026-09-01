@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { getGame } from '@aether/shared'
 
-const playableIds = new Set(['chess', 'xiangqi', 'gomoku', 'checkers', 'aeroplane', 'werewolf', 'avalon', 'mahjong'])
+const playableIds = new Set(['chess', 'xiangqi', 'gomoku', 'checkers', 'aeroplane', 'werewolf', 'avalon', 'mahjong', 'uno', 'doudizhu'])
 
 export default function Encyclopedia() {
   const { id } = useParams()

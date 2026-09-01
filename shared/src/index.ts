@@ -8,3 +8,5 @@ export * from './engines/aeroplane.js';
 export * from './engines/werewolf.js';
 export * from './engines/avalon.js';
 export * from './engines/mahjong.js';
+export * from './engines/uno.js';
+export * from './engines/doudizhu.js';
