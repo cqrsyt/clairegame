@@ -7,20 +7,142 @@ import path from 'path';
 import { existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import {
-  createChess, applyChessMove, chessAI,
-  createXiangqi, applyXiangqiMove, xiangqiAI,
-  createGomoku, playGomoku, gomokuAI,
+  createChess, applyChessMove,
+  createXiangqi, applyXiangqiMove,
+  createGomoku, playGomoku,
   createWerewolf, wolfKill, seerCheck, witchAct, castVote, resolveVotes, hunterShoot, werewolfBotStep,
   createAvalon, proposeTeam, voteTeam, playQuestCard, assassinate, avalonBotStep, nightInfoFor,
 } from '@aether/shared';
 
+const ORIGINS = [
+  'https://cqrsyt.github.io',
+  'https://clairegame.onrender.com',
+  'http://localhost:5173',
+  'http://localhost:3001',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+];
+
+function originOk(origin?: string) {
+  if (!origin) return true;
+  return ORIGINS.some((o) => origin === o || origin.startsWith(o));
+}
+
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: (origin, cb) => cb(null, originOk(origin || undefined)),
+  credentials: true,
+}));
+app.use(express.json());
+
 app.get('/api/health', (_req, res) => res.json({ ok: true, name: '星域棋庭' }));
+
+const GH_ID = process.env.GITHUB_CLIENT_ID || '';
+const GH_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
+const FRONTEND = process.env.FRONTEND_URL || 'https://cqrsyt.github.io/clairegame';
+
+type SessionUser = { login: string; avatar: string };
+const sessions = new Map<string, SessionUser>();
+
+function parseCookie(header?: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return out;
+}
+
+function sidFrom(req: express.Request) {
+  return parseCookie(req.headers.cookie)['aether_sid'];
+}
+
+app.get('/api/auth/config', (_req, res) => {
+  res.json({ enabled: !!(GH_ID && GH_SECRET) });
+});
+
+app.get('/auth/github', (req, res) => {
+  if (!GH_ID || !GH_SECRET) {
+    return res.status(501).json({
+      ok: false,
+      error: 'host needs GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET; callback https://clairegame.onrender.com/auth/github/callback',
+    });
+  }
+  const next = typeof req.query.next === 'string' ? req.query.next : FRONTEND;
+  const state = Buffer.from(JSON.stringify({ n: randomBytes(8).toString('hex'), next })).toString('base64url');
+  const url = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(GH_ID)}&scope=read:user&state=${encodeURIComponent(state)}`;
+  res.redirect(url);
+});
+
+app.get('/auth/github/callback', async (req, res) => {
+  const next = (() => {
+    try {
+      const st = String(req.query.state || '');
+      const parsed = JSON.parse(Buffer.from(st, 'base64url').toString());
+      return typeof parsed.next === 'string' ? parsed.next : FRONTEND;
+    } catch {
+      return FRONTEND;
+    }
+  })();
+  if (!GH_ID || !GH_SECRET) return res.redirect(next);
+  const code = String(req.query.code || '');
+  try {
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: GH_ID, client_secret: GH_SECRET, code }),
+    });
+    const tokenJson = await tokenRes.json() as { access_token?: string };
+    if (!tokenJson.access_token) throw new Error('no token');
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${tokenJson.access_token}`, 'User-Agent': 'clairegame', Accept: 'application/json' },
+    });
+    const user = await userRes.json() as { login?: string; avatar_url?: string };
+    const sid = randomBytes(16).toString('hex');
+    sessions.set(sid, { login: user.login || 'github', avatar: user.avatar_url || '' });
+    res.setHeader('Set-Cookie', `aether_sid=${sid}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=1209600`);
+    res.redirect(`${next}${next.includes('?') ? '&' : '?'}login=ok`);
+  } catch {
+    res.redirect(`${next}${next.includes('?') ? '&' : '?'}login=fail`);
+  }
+});
+
+app.get('/api/me', (req, res) => {
+  const sid = sidFrom(req);
+  const user = sid ? sessions.get(sid) : undefined;
+  res.json({ user: user || null, oauth: !!(GH_ID && GH_SECRET) });
+});
+
+app.post('/auth/logout', (req, res) => {
+  const sid = sidFrom(req);
+  if (sid) sessions.delete(sid);
+  res.setHeader('Set-Cookie', 'aether_sid=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0');
+  res.json({ ok: true });
+});
+
+type Hist = { gameId: string; result: string; at: number; nick: string };
+const history = new Map<string, Hist[]>();
+
+app.get('/api/history', (req, res) => {
+  const nick = String(req.query.nick || '').trim() || 'traveler';
+  res.json({ items: history.get(nick) || [] });
+});
+
+app.post('/api/history', (req, res) => {
+  const nick = String(req.body?.nick || '').trim() || 'traveler';
+  const gameId = String(req.body?.gameId || 'unknown');
+  const result = String(req.body?.result || '');
+  const list = history.get(nick) || [];
+  list.unshift({ nick, gameId, result, at: Date.now() });
+  history.set(nick, list.slice(0, 20));
+  res.json({ ok: true, items: history.get(nick) });
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: '*' },
+  cors: { origin: ORIGINS, credentials: true },
 });
 
 type Room = {
@@ -45,7 +167,7 @@ io.on('connection', (socket) => {
       code: c,
       gameId,
       host: socket.id,
-      players: [{ id: socket.id, name: name || '旅人', ready: true }],
+      players: [{ id: socket.id, name: name || 'traveler', ready: true }],
       status: 'lobby',
       state: null,
     };
@@ -56,11 +178,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join_room', ({ code: c, name }, cb) => {
-    const room = rooms.get(String(c).toUpperCase());
-    if (!room) return cb?.({ ok: false, error: '房间不存在' });
-    if (room.status !== 'lobby') return cb?.({ ok: false, error: '对局已开始' });
-    if (room.players.length >= 12) return cb?.({ ok: false, error: '房间已满' });
-    room.players.push({ id: socket.id, name: name || '旅人', ready: false });
+    const room = rooms.get(String(c || '').toUpperCase());
+    if (!room) return cb?.({ ok: false, error: 'no room' });
+    if (room.status !== 'lobby') return cb?.({ ok: false, error: 'started' });
+    if (room.players.length >= 12) return cb?.({ ok: false, error: 'full' });
+    if (!room.players.some((p) => p.id === socket.id)) {
+      room.players.push({ id: socket.id, name: name || 'traveler', ready: false });
+    }
     socket.join(room.code);
     cb?.({ ok: true, room });
     io.to(room.code).emit('room_update', room);
@@ -83,10 +207,10 @@ io.on('connection', (socket) => {
     else if (room.gameId === 'xiangqi') room.state = createXiangqi();
     else if (room.gameId === 'gomoku') room.state = createGomoku();
     else if (room.gameId === 'werewolf') {
-      while (guests.length < 6) guests.push({ id: `bot${guests.length}`, name: `机器人${guests.length}`, isBot: true });
+      while (guests.length < 6) guests.push({ id: `bot${guests.length}`, name: `bot${guests.length}`, isBot: true });
       room.state = createWerewolf(guests);
     } else if (room.gameId === 'avalon') {
-      while (guests.length < 5) guests.push({ id: `bot${guests.length}`, name: `骑士${guests.length}`, isBot: true });
+      while (guests.length < 5) guests.push({ id: `bot${guests.length}`, name: `knight${guests.length}`, isBot: true });
       room.state = createAvalon(guests);
     } else {
       room.state = { stub: true };
@@ -145,13 +269,12 @@ io.on('connection', (socket) => {
   });
 });
 
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.resolve(__dirname, '../../client/dist');
 if (existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api')) return next();
+    if (req.path.startsWith('/api') || req.path.startsWith('/auth') || req.path.startsWith('/socket.io')) return next();
     res.sendFile(path.join(clientDist, 'index.html'), (err) => {
       if (err) next();
     });
