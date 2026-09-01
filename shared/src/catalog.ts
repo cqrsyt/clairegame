@@ -1,4 +1,4 @@
-import type { GameMeta } from './types';
+import type { GameMeta } from './types.js';
 
 export const GAMES: GameMeta[] = [
   {
