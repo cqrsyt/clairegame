@@ -17,9 +17,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
       - run: npm install
-      - run: npm run build
+      - run: npm run build -w shared
+      - run: npm run build -w client
         env:
           VITE_SOCKET_URL: https://clairegame.onrender.com
           VITE_BASE_PATH: /clairegame/
