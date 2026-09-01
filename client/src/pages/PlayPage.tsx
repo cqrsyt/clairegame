@@ -11,6 +11,10 @@ import AvalonGame from '../games/AvalonGame'
 import MahjongGame from '../games/MahjongGame'
 import UnoGame from '../games/UnoGame'
 import DoudizhuGame from '../games/DoudizhuGame'
+import GoGame from '../games/GoGame'
+import JunqiGame from '../games/JunqiGame'
+import HoldemGame from '../games/HoldemGame'
+import MonopolyGame from '../games/MonopolyGame'
 
 const map: Record<string, ComponentType> = {
   chess: ChessGame,
@@ -23,6 +27,10 @@ const map: Record<string, ComponentType> = {
   mahjong: MahjongGame,
   uno: UnoGame,
   doudizhu: DoudizhuGame,
+  go: GoGame,
+  junqi: JunqiGame,
+  holdem: HoldemGame,
+  monopoly: MonopolyGame,
 }
 
 export default function PlayPage() {
@@ -35,8 +43,9 @@ export default function PlayPage() {
   if (!g || !Comp) {
     return (
       <div className="page">
-        <h1>尚未开放完整对局</h1>
-        <Link className="btn" to={`/game/${id}`}>查看图鉴</Link>
+        <h1>这款还不能坐下来玩</h1>
+        <p style={{ color: 'var(--muted)' }}>可以先看说明，或换一款已经开放的。</p>
+        <Link className="btn" to={`/game/${id}`}>查看说明</Link>
       </div>
     )
   }
@@ -44,7 +53,7 @@ export default function PlayPage() {
     <div className="page play-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
         <h1 style={{ marginBottom: 0 }}>{g.nameZh}</h1>
-        <Link to={`/game/${g.id}`} style={{ color: 'var(--muted)' }}>图鉴与教程</Link>
+        <Link to={`/game/${g.id}`} style={{ color: 'var(--muted)' }}>规则说明</Link>
       </div>
       <Comp />
     </div>
