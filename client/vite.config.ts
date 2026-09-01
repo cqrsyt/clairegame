@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
-  base: '/clairegame/',
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {
