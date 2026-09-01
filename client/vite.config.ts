@@ -5,8 +5,11 @@ import { fileURLToPath } from 'url'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
+// GitHub Pages project site needs /clairegame/; Render (same-origin) uses /
+const base = process.env.VITE_BASE_PATH || '/'
+
 export default defineConfig({
-  base: '/',
+  base,
   plugins: [react()],
   resolve: {
     alias: {

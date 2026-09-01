@@ -24,7 +24,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm install
-      - run: npm run build -w shared && npm run build -w client
+      - name: Build client for GitHub Pages
+        env:
+          VITE_BASE_PATH: /clairegame/
+        run: npm run build -w shared && npm run build -w client
       - uses: actions/upload-pages-artifact@v3
         with:
           path: client/dist
