@@ -10,3 +10,7 @@ export * from './engines/avalon.js';
 export * from './engines/mahjong.js';
 export * from './engines/uno.js';
 export * from './engines/doudizhu.js';
+export * from './engines/go.js';
+export * from './engines/junqi.js';
+export * from './engines/holdem.js';
+export * from './engines/monopoly.js';
