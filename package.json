@@ -2,20 +2,23 @@
   "name": "aether-table",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": [
     "client",
     "server",
     "shared"
   ],
-  "scripts": {
-    "dev": "concurrently -n server,client -c magenta,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
-    "dev:client": "npm run dev -w client",
-    "dev:server": "npm run dev -w server",
-    "build": "npm run build -w shared && npm run build -w client && npm run build -w server",
-    "test": "npm run test -w shared",
-    "start": "npm run start -w server"
-  },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "scripts": {
+    "build": "npm run build -w shared && npm run build -w client && npm run build -w server",
+    "test": "npm run test -w shared",
+    "start": "npm run start -w server",
+    "dev": "npm run build -w shared && concurrently -n server,client -c magenta,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:client": "npm run dev -w client",
+    "dev:server": "npm run build -w shared && npm run dev -w server"
   }
 }

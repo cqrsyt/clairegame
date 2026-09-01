@@ -3,13 +3,16 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { randomBytes } from 'crypto';
+import path from 'path';
+import { existsSync } from 'fs';
+import { fileURLToPath } from 'url';
 import {
   createChess, applyChessMove, chessAI,
   createXiangqi, applyXiangqiMove, xiangqiAI,
   createGomoku, playGomoku, gomokuAI,
   createWerewolf, wolfKill, seerCheck, witchAct, castVote, resolveVotes, hunterShoot, werewolfBotStep,
   createAvalon, proposeTeam, voteTeam, playQuestCard, assassinate, avalonBotStep, nightInfoFor,
-} from '../../shared/src/index';
+} from '@aether/shared';
 
 const app = express();
 app.use(cors());
@@ -142,7 +145,20 @@ io.on('connection', (socket) => {
   });
 });
 
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDist = path.resolve(__dirname, '../../client/dist');
+if (existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(clientDist, 'index.html'), (err) => {
+      if (err) next();
+    });
+  });
+}
+
 const PORT = Number(process.env.PORT || 3001);
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`AETHER TABLE server on :${PORT}`);
 });
