@@ -172,6 +172,7 @@ export const aeroCoach = {
   },
   explain(state: AeroState, suggested?: AeroAdvice | null) {
     if (state.winner) return `${state.winner} 的飞机都到家了。`;
+    if (suggested === null) return '请稍候，电脑正在走棋。';
     const m = suggested === undefined ? aeroCoach.suggestMove(state) : suggested;
     const camp: Record<AeroColor, string> = { red: '红', yellow: '黄', blue: '蓝', green: '绿' };
     if (!m || m.action === 'roll') return `${camp[state.turn]}方请掷骰。掷到 6 才可以从机库起飞。`;

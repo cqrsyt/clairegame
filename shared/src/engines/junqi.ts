@@ -155,6 +155,7 @@ export const junqiCoach = {
   suggestMove(state: JunqiState) { return junqiAI(state); },
   explain(state: JunqiState, suggested?: { fr: number; fc: number; tr: number; tc: number } | null) {
     if (state.winner !== null) return state.winner === 0 ? '红方走进对方兽穴，这一局结束。' : '蓝方走进对方兽穴，这一局结束。';
+    if (suggested === null) return state.turn === 0 ? '请您走红棋。' : '请稍候，蓝方正在思考。';
     const m = suggested === undefined ? junqiAI(state) : suggested;
     const who = state.turn === 0 ? '请您走红棋。' : '轮到蓝棋。';
     if (!m) return `${who}没有可走的棋了。`;
