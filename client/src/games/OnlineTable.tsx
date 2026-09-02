@@ -157,6 +157,14 @@ function OnlineChess({ state, onMove }: { state: any; onMove: (fr: number, fc: n
   if (!state?.board) return <p>同步中…</p>
   const GLYPH: Record<string, string> = { K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟' }
   const lm = state.lastMove
+  const pick = (r: number, c: number) => {
+    if (!sel) setSel({ r, c })
+    else {
+      onMove(sel.r, sel.c, r, c)
+      setSel(null)
+    }
+  }
+  const fly = (r: number, c: number) => (lm && lm.tr === r && lm.tc === c ? 'piece-fly' : '')
   return (
     <div className="board-scale">
       <div className="chess-board">
@@ -165,11 +173,10 @@ function OnlineChess({ state, onMove }: { state: any; onMove: (fr: number, fc: n
             <div
               key={`${r}-${c}`}
               className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'} ${sel?.r === r && sel?.c === c ? 'selected' : ''} ${lm && lm.tr === r && lm.tc === c ? 'last-move' : ''}`}
-              onClick={() => {
-                if (!sel) setSel({ r, c })
-                else { onMove(sel.r, sel.c, r, c); setSel(null) }
-              }
-            >{p ? <span className={lm && lm.tr === r && lm.tc === c ? 'piece-fly' : ''}>{GLYPH[p]}</span> : ''}</div>
+              onClick={() => pick(r, c)}
+            >
+              {p ? <span className={fly(r, c)}>{GLYPH[p]}</span> : null}
+            </div>
           ))
         )}
       </div>
@@ -181,6 +188,14 @@ function OnlineXiangqi({ state, onMove }: { state: any; onMove: (fr: number, fc:
   const [sel, setSel] = useState<{ r: number; c: number } | null>(null)
   if (!state?.board) return <p>同步中…</p>
   const lm = state.lastMove
+  const pick = (r: number, c: number) => {
+    if (!sel) setSel({ r, c })
+    else {
+      onMove(sel.r, sel.c, r, c)
+      setSel(null)
+    }
+  }
+  const fly = (r: number, c: number) => (lm && lm.tr === r && lm.tc === c ? 'piece-fly' : '')
   return (
     <div className="board-scale">
       <div className="xq-board">
@@ -189,11 +204,10 @@ function OnlineXiangqi({ state, onMove }: { state: any; onMove: (fr: number, fc:
             <div
               key={`${r}-${c}`}
               className={`xq-cell ${sel?.r === r && sel?.c === c ? 'selected' : ''} ${lm && lm.tr === r && lm.tc === c ? 'last-move' : ''}`}
-              onClick={() => {
-                if (!sel) setSel({ r, c })
-                else { onMove(sel.r, sel.c, r, c); setSel(null) }
-              }
-            >{p ? <span className={lm && lm.tr === r && lm.tc === c ? 'piece-fly' : ''}>{p}</span> : ''}</div>
+              onClick={() => pick(r, c)}
+            >
+              {p ? <span className={fly(r, c)}>{p}</span> : null}
+            </div>
           ))
         )}
       </div>
