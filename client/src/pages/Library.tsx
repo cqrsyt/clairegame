@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { GAMES } from '@aether/shared'
+import GameMotif from '../components/GameMotif'
 
 const badgeLabel: Record<string, string> = {
   'full-ai': '可对战电脑',
@@ -16,6 +17,7 @@ export default function Library() {
       <div className="grid" style={{ padding: '1rem 0' }}>
         {GAMES.map((g) => (
           <Link key={g.id} to={`/game/${g.id}`} className="holo-panel game-card" style={{ color: 'inherit' }}>
+            <GameMotif id={g.id} />
             <span className={`badge ${g.playable}`}>{badgeLabel[g.playable]}</span>
             <h3>{g.nameZh}</h3>
             <div className="en">{g.nameEn}</div>
