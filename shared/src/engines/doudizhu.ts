@@ -1,6 +1,6 @@
 export interface DDCard {
   id: string;
-  rank: number;
+  rank: number; // 3-15 (2=15), 16 small joker, 17 big joker
   suit: string;
   label: string;
 }
@@ -34,10 +34,10 @@ export interface DDState {
   log: string[];
 }
 
-const SUITS = ['S', 'H', 'C', 'D'];
+const SUITS = ['♠', '♥', '♣', '♦'];
 const RANK_LABEL: Record<number, string> = {
   3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10',
-  11: 'J', 12: 'Q', 13: 'K', 14: 'A', 15: '2', 16: 'jw', 17: 'JW',
+  11: 'J', 12: 'Q', 13: 'K', 14: 'A', 15: '2', 16: '小王', 17: '大王',
 };
 
 function shuffle<T>(arr: T[]): T[] {
@@ -57,8 +57,8 @@ function buildDeck(): DDCard[] {
       cards.push({ id: `d${n++}`, rank, suit, label: `${suit}${RANK_LABEL[rank]}` });
     }
   }
-  cards.push({ id: `d${n++}`, rank: 16, suit: 'j', label: 'jw' });
-  cards.push({ id: `d${n++}`, rank: 17, suit: 'J', label: 'JW' });
+  cards.push({ id: `d${n++}`, rank: 16, suit: 'j', label: '小王' });
+  cards.push({ id: `d${n++}`, rank: 17, suit: 'J', label: '大王' });
   return shuffle(cards);
 }
 
@@ -67,12 +67,12 @@ function sortHand(h: DDCard[]) {
 }
 
 export function createDoudizhu(names?: { id: string; name: string; isBot: boolean }[]): DDState {
-  const roster = (names || [{ id: 'you', name: 'you', isBot: false }]).slice(0, 3);
-  while (roster.length < 3) roster.push({ id: `dd${roster.length}`, name: `bot${roster.length}`, isBot: true });
+  const roster = (names || [{ id: 'you', name: '你', isBot: false }]).slice(0, 3);
+  while (roster.length < 3) roster.push({ id: `dd${roster.length}`, name: `农民${roster.length}`, isBot: true });
   const deck = buildDeck();
   const hands: DDCard[][] = [[], [], []];
   for (let i = 0; i < 17; i++) for (let p = 0; p < 3; p++) hands[p].push(deck.pop()!);
-  const landlord = 0;
+  const landlord = 0; // bidding skipped: you are landlord
   hands[landlord].push(...deck);
   const players: DDPlayer[] = roster.map((p, i) => ({
     ...p,
@@ -88,7 +88,7 @@ export function createDoudizhu(names?: { id: string; name: string; isBot: boolea
     passes: 0,
     winner: null,
     phase: 'play',
-    log: ['skip bid, you are landlord'],
+    log: ['跳过叫分，你为地主，底牌已收入。'],
   };
 }
 
@@ -166,11 +166,11 @@ export function playDoudizhu(state: DDState, player: number, cardIds: string[]):
     lastPlayer: player,
     passes: 0,
   };
-  next.log.push(`${next.players[player].name} play ${combo.cards.map((c) => c.label).join(' ')}`);
+  next.log.push(`${next.players[player].name} 出 ${combo.cards.map((c) => c.label).join(' ')}`);
   if (next.players[player].hand.length === 0) {
     next.winner = player;
     next.phase = 'ended';
-    next.log.push(`${next.players[player].name} wins`);
+    next.log.push(`${next.players[player].name}（${next.players[player].role === 'landlord' ? '地主' : '农民'}）获胜！`);
     return next;
   }
   next.current = (player + 1) % 3;
@@ -179,10 +179,10 @@ export function playDoudizhu(state: DDState, player: number, cardIds: string[]):
 
 export function passDoudizhu(state: DDState, player: number): DDState {
   if (state.phase !== 'play' || state.current !== player || state.winner !== null) return state;
-  if (!state.last || state.lastPlayer === player) return state;
+  if (!state.last || state.lastPlayer === player) return state; // must lead
   const next: DDState = {
     ...state,
-    log: [...state.log, `${state.players[player].name} pass`],
+    log: [...state.log, `${state.players[player].name} 不要`],
     passes: state.passes + 1,
     current: (player + 1) % 3,
   };
@@ -190,7 +190,7 @@ export function passDoudizhu(state: DDState, player: number): DDState {
     next.last = null;
     next.lastPlayer = null;
     next.passes = 0;
-    next.log.push('new lead');
+    next.log.push('无人压制，重新出牌。');
   }
   return next;
 }
@@ -232,19 +232,64 @@ function combosFromHand(hand: DDCard[]): Combo[] {
   return out;
 }
 
+const COMBO_ZH: Record<ComboKind, string> = {
+  pass: '不要', solo: '单张', pair: '对子', triple: '三张', triple1: '三带一', triple2: '三带二',
+  straight: '顺子', bomb: '炸弹', rocket: '王炸',
+};
+
+export type DDAdvice = { action: 'pass' } | { action: 'play'; combo: Combo };
+
+export function doudizhuSuggest(state: DDState, player = state.current): DDAdvice | null {
+  if (state.winner !== null) return null;
+  const p = state.players[player];
+  const leading = !state.last || state.lastPlayer === player;
+  const options = combosFromHand(p.hand).filter((c) => leading ? c.kind !== 'pass' : beats(c, state.last));
+  if (!options.length) return { action: 'pass' };
+  const canFinish = options.find((c) => c.cards.length === p.hand.length);
+  if (canFinish) return { action: 'play', combo: canFinish };
+  const bombs = options.filter((c) => c.kind === 'bomb' || c.kind === 'rocket');
+  const normal = options.filter((c) => c.kind !== 'bomb' && c.kind !== 'rocket');
+  const pool = normal.length ? normal : bombs;
+  pool.sort((a, b) => {
+    if (leading) {
+      if (a.kind === 'straight' && b.kind !== 'straight') return -1;
+      if (b.kind === 'straight' && a.kind !== 'straight') return 1;
+      return a.rank - b.rank || a.cards.length - b.cards.length;
+    }
+    return a.rank - b.rank || a.cards.length - b.cards.length;
+  });
+  const choice = pool[0];
+  if (!leading && p.role === 'farmer') {
+    const lastP = state.lastPlayer;
+    const lastRole = lastP !== null ? state.players[lastP].role : null;
+    if (lastRole === 'farmer' && lastP !== player && (choice.kind === 'bomb' || choice.rank >= 14)) {
+      return { action: 'pass' };
+    }
+  }
+  return { action: 'play', combo: choice };
+}
+
 export function doudizhuBot(state: DDState): DDState {
   if (state.winner !== null) return state;
   const p = state.players[state.current];
   if (!p.isBot) return state;
-  const options = combosFromHand(p.hand).filter((c) => {
-    const leading = !state.last || state.lastPlayer === state.current;
-    return leading ? c.kind !== 'pass' : beats(c, state.last);
-  });
-  options.sort((a, b) => {
-    const bomb = (k: ComboKind) => (k === 'bomb' || k === 'rocket' ? 1 : 0);
-    if (bomb(a.kind) !== bomb(b.kind)) return bomb(a.kind) - bomb(b.kind);
-    return a.cards.length - b.cards.length || a.rank - b.rank;
-  });
-  if (!options.length) return passDoudizhu(state, state.current);
-  return playDoudizhu(state, state.current, options[0].cards.map((c) => c.id));
+  const sug = doudizhuSuggest(state, state.current);
+  if (!sug || sug.action === 'pass') return passDoudizhu(state, state.current);
+  return playDoudizhu(state, state.current, sug.combo.cards.map((c) => c.id));
 }
+
+export const doudizhuCoach = {
+  suggestMove(state: DDState, player = 0) { return doudizhuSuggest(state, player); },
+  explain(state: DDState, suggested?: DDAdvice | null) {
+    if (state.winner !== null) return `${state.players[state.winner].name} 已经出完。`;
+    if (state.current !== 0) return `${state.players[state.current].name} 正在出牌。您是地主。`;
+    const m = suggested === undefined ? doudizhuSuggest(state, 0) : suggested;
+    const leading = !state.last || state.lastPlayer === 0;
+    if (!m || m.action === 'pass') return '这一手压不过上家，建议点「不要」，把出牌权让给队友。';
+    const cards = m.combo.cards.map((c) => c.label).join(' ');
+    const kind = COMBO_ZH[m.combo.kind];
+    if (leading) return `您是地主，现在领出。建议出${kind}：${cards}。先出小牌、能走顺子更好。`;
+    return `上家是 ${state.last?.cards.map((c) => c.label).join(' ')}。建议用${kind}压：${cards}。`;
+  },
+  legalHighlights() { return []; },
+};
