@@ -199,6 +199,26 @@ export function assassinate(state: AvalonState, targetId: string): AvalonState {
   };
 }
 
+function avalonSpeaker(state: AvalonState) {
+  return state.players.filter((p) => p.isBot).sort((a, b) => a.id.localeCompare(b.id))[0];
+}
+
+/** One public table line after votes/quests; never names Merlin or evil camps. */
+export function avalonTableRemark(state: AvalonState, kind: 'vote_ok' | 'vote_no' | 'quest_ok' | 'quest_fail'): string | null {
+  const sp = avalonSpeaker(state);
+  if (!sp) return null;
+  if (kind === 'vote_ok') return `${sp.name}：「这队我先跟一程。」`;
+  if (kind === 'vote_no') return `${sp.name}：「这队我心里没底，先看看下一手。」`;
+  if (kind === 'quest_ok') return `${sp.name}：「这一轮干净，大家松口气。」`;
+  return `${sp.name}：「任务翻了，队里有人动手。下一轮盯紧点。」`;
+}
+
+function withRemark(state: AvalonState, kind: 'vote_ok' | 'vote_no' | 'quest_ok' | 'quest_fail'): AvalonState {
+  const line = avalonTableRemark(state, kind);
+  if (!line || state.log[state.log.length - 1] === line) return state;
+  return { ...state, log: [...state.log, line] };
+}
+
 export function avalonBotStep(state: AvalonState): AvalonState {
   const leader = state.players[state.leader];
   if (state.phase === 'team_propose' && leader.isBot) {
@@ -235,9 +255,12 @@ export function avalonBotStep(state: AvalonState): AvalonState {
       else approve = team.some((t) => t.id === p.id) || state.rejectStreak >= 3;
       state = voteTeam(state, p.id, approve);
     }
+    if (state.phase === 'quest') state = withRemark(state, 'vote_ok');
+    else if (state.phase === 'team_propose') state = withRemark(state, 'vote_no');
   }
   if (state.phase === 'quest') {
     const failsNeed = state.failsRequired[state.questIndex] || 1;
+    const qIndex = state.questIndex;
     const evilOnTeam = state.proposed.filter((id) => {
       const pl = state.players.find((x) => x.id === id);
       return pl && isEvil(pl.role);
@@ -256,6 +279,10 @@ export function avalonBotStep(state: AvalonState): AvalonState {
         }
       }
       state = playQuestCard(state, id, success);
+    }
+    if (state.phase !== 'quest') {
+      const ok = state.questResults[qIndex] === true;
+      state = withRemark(state, ok ? 'quest_ok' : 'quest_fail');
     }
   }
   if (state.phase === 'assassinate') {
@@ -356,4 +383,3 @@ export const avalonCoach = {
   },
   legalHighlights() { return []; },
 };
-
