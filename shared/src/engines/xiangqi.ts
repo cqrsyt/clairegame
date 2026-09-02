@@ -8,6 +8,7 @@ export interface XiangqiState {
   board: XPiece[][];
   turn: 'R' | 'B';
   winner: 'R' | 'B' | null;
+  lastMove: { fr: number; fc: number; tr: number; tc: number } | null;
 }
 
 const ROWS = 10, COLS = 9;
@@ -26,7 +27,7 @@ export function createXiangqi(): XiangqiState {
     [e,e,e,e,e,e,e,e,e],
     ['RR','RN','RB','RA','RK','RA','RB','RN','RR'],
   ];
-  return { board, turn: 'R', winner: null };
+  return { board, turn: 'R', winner: null, lastMove: null };
 }
 
 function sideOf(p: XPiece): 'R' | 'B' | null {
@@ -181,6 +182,7 @@ export function applyXiangqiMove(state: XiangqiState, fr: number, fc: number, tr
     board,
     turn: state.turn === 'R' ? 'B' : 'R',
     winner: null,
+    lastMove: { fr, fc, tr, tc },
   };
   if (captured === 'RK') next.winner = 'B';
   else if (captured === 'BK') next.winner = 'R';
@@ -192,37 +194,146 @@ const VAL: Record<string, number> = { K: 10000, R: 900, C: 450, N: 400, B: 200, 
 
 function evalX(state: XiangqiState, side: 'R' | 'B') {
   let s = 0;
+  const myK = findKing(state.board, side);
+  const opK = findKing(state.board, side === 'R' ? 'B' : 'R');
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++) {
       const p = state.board[r][c];
       if (!p) continue;
-      const v = VAL[kind(p)] || 0;
-      s += sideOf(p) === side ? v : -v;
+      const k = kind(p);
+      const mine = sideOf(p) === side;
+      let v = VAL[k] || 0;
+      if (k === 'P') {
+        if (crossedRiver(r, sideOf(p)!)) v += 40;
+        if (c === 4) v += 12; // 中兵
+        v += (sideOf(p) === 'R' ? 9 - r : r) * 4;
+      }
+      if (k === 'N') {
+        // 马腿通畅略加分
+        const blocked = [[-1,0],[1,0],[0,-1],[0,1]].filter(([dr, dc]) => inBound(r+dr, c+dc) && state.board[r+dr][c+dc]).length;
+        v += 18 - blocked * 6;
+      }
+      if (k === 'C') {
+        if (c === 4 || r === myK.r || c === opK.c) v += 18; // 中炮 / 沉底意识
+      }
+      if (k === 'R' && (c === 4 || r === 0 || r === 9)) v += 10;
+      if ((k === 'A' || k === 'B') && inPalace(myK.r, myK.c, sideOf(p)!)) v += 8;
+      s += mine ? v : -v;
     }
+  if (isInCheck(state, side)) s -= 80;
+  if (isInCheck(state, side === 'R' ? 'B' : 'R')) s += 55;
+  // 将帅安全：偏中、有士象
+  s += (3 - Math.abs(myK.c - 4)) * 8;
+  s -= (3 - Math.abs(opK.c - 4)) * 6;
   return s;
 }
 
+function xiangqiBook(state: XiangqiState) {
+  const b = state.board;
+  const legal = (fr: number, fc: number, tr: number, tc: number) =>
+    xiangqiLegalFrom(state, fr, fc).some((m) => m.r === tr && m.c === tc);
+  if (state.turn === 'R') {
+    if (b[7][1] === 'RC' && !b[7][4] && legal(7, 1, 7, 4)) return { fr: 7, fc: 1, tr: 7, tc: 4 }; // 炮二平五
+    if (b[7][7] === 'RC' && !b[7][4] && legal(7, 7, 7, 4)) return { fr: 7, fc: 7, tr: 7, tc: 4 };
+    if (b[9][1] === 'RN' && legal(9, 1, 7, 2)) return { fr: 9, fc: 1, tr: 7, tc: 2 }; // 马二进三
+    if (b[9][7] === 'RN' && legal(9, 7, 7, 6)) return { fr: 9, fc: 7, tr: 7, tc: 6 };
+    if (b[6][4] === 'RP' && legal(6, 4, 5, 4)) return { fr: 6, fc: 4, tr: 5, tc: 4 }; // 中兵
+  } else {
+    if (b[2][7] === 'BC' && !b[2][4] && legal(2, 7, 2, 4)) return { fr: 2, fc: 7, tr: 2, tc: 4 }; // 炮8平5
+    if (b[2][1] === 'BC' && !b[2][4] && legal(2, 1, 2, 4)) return { fr: 2, fc: 1, tr: 2, tc: 4 };
+    if (b[0][7] === 'BN' && legal(0, 7, 2, 6)) return { fr: 0, fc: 7, tr: 2, tc: 6 };
+    if (b[0][1] === 'BN' && legal(0, 1, 2, 2)) return { fr: 0, fc: 1, tr: 2, tc: 2 };
+    if (b[3][4] === 'BP' && legal(3, 4, 4, 4)) return { fr: 3, fc: 4, tr: 4, tc: 4 };
+  }
+  return null;
+}
+
+function orderX(state: XiangqiState, moves: { fr: number; fc: number; tr: number; tc: number }[]) {
+  return moves.slice().sort((a, b) => {
+    const va = state.board[a.tr][a.tc] ? VAL[kind(state.board[a.tr][a.tc]!)] : 0;
+    const vb = state.board[b.tr][b.tc] ? VAL[kind(state.board[b.tr][b.tc]!)] : 0;
+    return vb - va;
+  });
+}
+
+function evalXQuiet(state: XiangqiState, me: 'R' | 'B', m: { fr: number; fc: number; tr: number; tc: number }) {
+  const next = applyXiangqiMove(state, m.fr, m.fc, m.tr, m.tc, true);
+  if (next.winner === me) return 1e6;
+  if (next.winner && next.winner !== me) return -1e6;
+  let sc = evalX(next, me);
+  if (isInCheck(next, next.turn)) sc += 40;
+  return sc;
+}
+
 export function xiangqiAI(state: XiangqiState) {
-  const moves = allLegal(state);
+  if (state.winner) return null;
+  const book = xiangqiBook(state);
+  if (book) return book;
+  const moves = orderX(state, allLegal(state));
   if (!moves.length) return null;
   const me = state.turn;
   let best = moves[0], bestScore = -Infinity;
-  for (const m of moves) {
+  const rootCap = Math.min(moves.length, 28);
+  for (let i = 0; i < rootCap; i++) {
+    const m = moves[i];
     const next = applyXiangqiMove(state, m.fr, m.fc, m.tr, m.tc);
     if (next.winner === me) return m;
-    let sc = evalX(next, me);
-    if (isInCheck(next, next.turn)) sc += 50;
+    const replies = orderX(next, allLegal(next)).slice(0, 18);
+    let worst = replies.length ? Infinity : evalX(next, me);
+    for (const r of replies) {
+      const n2 = applyXiangqiMove(next, r.fr, r.fc, r.tr, r.tc, true);
+      if (n2.winner && n2.winner !== me) { worst = -99999; break; }
+      worst = Math.min(worst, evalX(n2, me));
+    }
+    const sc = replies.length ? worst : evalXQuiet(state, me, m);
     if (sc > bestScore) { bestScore = sc; best = m; }
   }
   return best;
 }
 
+const CN_FILE = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+
+function xqPieceName(p: XPiece) {
+  if (!p) return '棋';
+  const red: Record<string, string> = { K: '帅', A: '仕', B: '相', N: '马', R: '车', C: '炮', P: '兵' };
+  const black: Record<string, string> = { K: '将', A: '士', B: '象', N: '马', R: '车', C: '炮', P: '卒' };
+  return (p[0] === 'R' ? red : black)[kind(p)] || '棋';
+}
+
+export type XiangqiMove = { fr: number; fc: number; tr: number; tc: number };
+
+export function xiangqiNotation(state: XiangqiState, m: XiangqiMove) {
+  const p = state.board[m.fr][m.fc];
+  if (!p) return '';
+  const red = p[0] === 'R';
+  const name = xqPieceName(p);
+  const fromFile = red ? 9 - m.fc : m.fc + 1;
+  const toFile = red ? 9 - m.tc : m.tc + 1;
+  const k = kind(p);
+  if (m.fr === m.tr) return `${name}${CN_FILE[fromFile]}平${CN_FILE[toFile]}`;
+  const forward = red ? m.tr < m.fr : m.tr > m.fr;
+  const verb = forward ? '进' : '退';
+  if (k === 'N' || k === 'B' || k === 'A') return `${name}${CN_FILE[fromFile]}${verb}${CN_FILE[toFile]}`;
+  return `${name}${CN_FILE[fromFile]}${verb}${CN_FILE[Math.abs(m.tr - m.fr)]}`;
+}
+
 export const xiangqiCoach = {
   suggestMove(state: XiangqiState) { return xiangqiAI(state); },
-  explain(state: XiangqiState) {
-    if (state.winner) return state.winner === 'R' ? '红方胜利！' : '黑方胜利！';
-    if (isInCheck(state, state.turn)) return '将军！必须应将。';
-    return state.turn === 'R' ? '红方行棋。注意炮架与车的通路。' : '黑方行棋。留意过河兵与马的卧槽。';
+  explain(state: XiangqiState, suggested?: XiangqiMove | null) {
+    if (state.winner) return state.winner === 'R' ? '红方将死对方，这一局结束。' : '黑方将死对方，这一局结束。';
+    const m = suggested === undefined ? xiangqiAI(state) : suggested;
+    const who = isInCheck(state, state.turn)
+      ? '将军！请先应将。'
+      : (state.turn === 'R' ? '请您走红棋。' : '轮到黑棋。');
+    if (!m) return `${who}没有可走的棋了。`;
+    const n = xiangqiNotation(state, m);
+    const cap = state.board[m.tr][m.tc];
+    let why: string;
+    if (cap) why = `这手可以吃掉对方的${xqPieceName(cap)}。`;
+    else if (isInCheck(state, state.turn)) why = '躲将、垫子或反吃，先把将解开。';
+    else if (kind(state.board[m.fr][m.fc]) === 'C' && m.tc === 4 && m.fr === m.tr) why = '炮架到中路，隔子打将很常见。';
+    else why = '这是当前局面比较稳妥的一手。';
+    return `${who}建议走「${n}」。${why}`;
   },
   legalHighlights(state: XiangqiState) { return allLegal(state); },
 };
