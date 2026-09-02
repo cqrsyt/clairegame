@@ -1,0 +1,24 @@
+.checkers-play { margin-top: 1rem; }
+.checkers-stage {
+  padding: 0.75rem;
+  flex: 1 1 380px;
+  max-width: 640px;
+  min-width: min(100%, 280px);
+}
+.checkers-star-wrap {
+  width: 100%;
+  max-width: 560px;
+}
+.checkers-star-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+  user-select: none;
+}
+.checkers-hole { cursor: pointer; }
+.checkers-hole:focus { outline: none; }
+.checkers-hole:focus-visible .checkers-ring {
+  stroke: #fffaf0;
+  stroke-width: 2.4;
+}

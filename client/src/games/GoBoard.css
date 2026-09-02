@@ -1,0 +1,15 @@
+.go-board {
+  grid-template-columns: repeat(19, minmax(12px, 26px));
+  max-width: min(100%, 560px);
+  width: 100%;
+}
+.go-board.n19 { grid-template-columns: repeat(19, minmax(12px, 26px)); }
+.go-scale { max-width: min(100%, 580px); overflow: auto; }
+.go-hoshi {
+  width: 22%; height: 22%; min-width: 4px; min-height: 4px; border-radius: 50%;
+  background: #1a1408; opacity: 0.72; pointer-events: none;
+}
+@media (max-width: 700px) {
+  .go-board.n19 { grid-template-columns: repeat(19, minmax(14px, 4.6vw)); }
+  .go-scale { max-width: 100%; overflow-x: auto; }
+}
