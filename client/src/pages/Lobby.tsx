@@ -32,7 +32,7 @@ export default function Lobby() {
     s.on('game_state', onState)
     s.on('error_msg', onErr)
     s.on('connect', () => setConnected(true))
-    s.on('connect_error', () => { setConnected(false); setError('cannot connect (Render free instance may be waking)') })
+    s.on('connect_error', () => { setConnected(false); setError('连不上房间。免费服务器可能在唤醒，稍等片刻；先跟电脑下也完全可以。') })
     if (s.connected) setConnected(true)
     return () => {
       s.off('room_update', onRoom)
@@ -48,7 +48,7 @@ export default function Lobby() {
   const create = () => {
     setError('')
     getSocket().emit('create_room', { gameId, name }, (res: any) => {
-      if (!res?.ok) return setError(res?.error || 'create failed')
+      if (!res?.ok) return setError(res?.error || '创建失败')
       setRoom(res.room)
       nav(`/lobby/${res.room.code}`)
     })
@@ -58,7 +58,7 @@ export default function Lobby() {
     setError('')
     const c = (code || joinCode).toUpperCase()
     getSocket().emit('join_room', { code: c, name }, (res: any) => {
-      if (!res?.ok) return setError(res?.error || 'join failed')
+      if (!res?.ok) return setError(res?.error || '加入失败')
       setRoom(res.room)
       nav(`/lobby/${res.room.code}`)
     })
@@ -78,61 +78,62 @@ export default function Lobby() {
 
   return (
     <div className="page">
-      <h1>lobby</h1>
+      <h1>联机大厅</h1>
       <p style={{ color: 'var(--muted)' }}>
-        chess / xiangqi / gomoku / werewolf / avalon online.
-        {connected ? ' connected' : ' connecting...'}
+        填一个昵称，创建或加入房间。象棋、国际象棋、五子棋、狼人杀、阿瓦隆可以联机。
+        {connected ? ' · 已连上房间服务' : ' · 正在连接…'}
       </p>
       <div className="holo-panel" style={{ padding: '1.25rem', display: 'grid', gap: '1rem', maxWidth: 560 }}>
         <label>
-          nick
+          昵称
           <input className="input" style={{ width: '100%', marginTop: 6 }} value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label>
-          game
+          游戏
           <select className="input" style={{ width: '100%', marginTop: 6 }} value={gameId} onChange={(e) => setGameId(e.target.value)}>
             {onlineGames.map((g) => (
               <option key={g.id} value={g.id}>{g.nameZh}</option>
             ))}
           </select>
         </label>
-        <button className="btn" onClick={create}>create room</button>
+        <button className="btn" onClick={create}>创建房间</button>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input className="input" placeholder="room code" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} />
-          <button className="btn magenta" onClick={() => join()}>join</button>
+          <input className="input" placeholder="房间码" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} />
+          <button className="btn magenta" onClick={() => join()}>加入</button>
         </div>
         {error && <div style={{ color: 'var(--danger)' }}>{error}</div>}
       </div>
 
       <div className="holo-panel" style={{ marginTop: '1.5rem', padding: '1.25rem', maxWidth: 560 }}>
-        <h2>starred</h2>
+        <h2>收藏的人和房间</h2>
+        <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>存在本机，方便下次再进。</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {stars.nicks.map((n) => (
             <button key={n} className="btn" onClick={() => setName(n)}>{n}</button>
           ))}
           {stars.rooms.map((c) => (
-            <button key={c} className="btn gold" onClick={() => { setJoinCode(c); join(c) }}>room {c}</button>
+            <button key={c} className="btn gold" onClick={() => { setJoinCode(c); join(c) }}>房 {c}</button>
           ))}
         </div>
       </div>
 
       {room && (
         <div className="holo-panel" style={{ marginTop: '1.5rem', padding: '1.25rem' }}>
-          <h2>room {room.code}</h2>
-          <p style={{ color: 'var(--muted)' }}>{GAMES.find((g) => g.id === room.gameId)?.nameZh}</p>
+          <h2>房间 {room.code}</h2>
+          <p style={{ color: 'var(--muted)' }}>游戏：{GAMES.find((g) => g.id === room.gameId)?.nameZh} · 分享房间码或链接</p>
           <ul>
             {room.players.map((p: any) => (
               <li key={p.id}>
-                {p.name} {p.ready ? 'Y' : ''} {p.id === room.host ? '(host)' : ''}
-                <button className="btn icon-btn" style={{ marginLeft: 8 }} onClick={() => setStars(toggleStarNick(p.name))}>star</button>
+                {p.name} {p.ready ? '✓' : ''} {p.id === room.host ? '（房主）' : ''}
+                <button className="btn icon-btn" style={{ marginLeft: 8 }} onClick={() => setStars(toggleStarNick(p.name))}>星标</button>
               </li>
             ))}
           </ul>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="btn" onClick={() => getSocket().emit('toggle_ready', { code: room.code })}>ready</button>
-            <button className="btn gold" onClick={() => getSocket().emit('start_game', { code: room.code })}>start</button>
-            <button className="btn" onClick={() => setStars(toggleStarRoom(room.code))}>star room</button>
-            <Link className="btn magenta" to="/library">leave</Link>
+            <button className="btn" onClick={() => getSocket().emit('toggle_ready', { code: room.code })}>切换准备</button>
+            <button className="btn gold" onClick={() => getSocket().emit('start_game', { code: room.code })}>开始对局</button>
+            <button className="btn" onClick={() => setStars(toggleStarRoom(room.code))}>收藏这个房间</button>
+            <Link className="btn magenta" to="/library">离开</Link>
           </div>
         </div>
       )}

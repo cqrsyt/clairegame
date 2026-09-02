@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getSocket } from '../lib/socket'
+import ShareCard from '../components/ShareCard'
+import { playSfx } from '../lib/sfx'
 
 export default function OnlineTable({ room, state, setState }: { room: any; state: any; setState: (s: any) => void }) {
   useEffect(() => {
@@ -10,7 +12,7 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
       if (room.gameId === 'werewolf' || room.gameId === 'avalon') {
         s.emit('game_action', { code: room.code, action: 'botStep', payload: {} })
       }
-    }, 900)
+    }, 1200)
     return () => {
       s.off('game_state', onState)
       clearInterval(iv)
@@ -25,7 +27,8 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
     return (
       <div className="page">
         <h1>联机五子棋 · 房间 {room.code}</h1>
-        <OnlineGomoku state={state} onMove={(r, c) => act('move', { r, c })} />
+        <OnlineGomoku state={state} onMove={(r, c) => { playSfx('move'); act('move', { r, c }) }} />
+        <ShareCard gameId="gomoku" title="联机五子棋" result={state?.winner === 1 ? '黑胜' : '白胜'} room={room.code} open={!!state?.winner} />
       </div>
     )
   }
@@ -34,7 +37,8 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
     return (
       <div className="page">
         <h1>联机国际象棋 · {room.code}</h1>
-        <OnlineChess state={state} onMove={(fr, fc, tr, tc) => act('move', { fr, fc, tr, tc })} />
+        <OnlineChess state={state} onMove={(fr, fc, tr, tc) => { playSfx(state?.board?.[tr]?.[tc] ? 'capture' : 'move'); act('move', { fr, fc, tr, tc }) }} />
+        <ShareCard gameId="chess" title="联机国际象棋" result={state?.winner === 'w' ? '白胜' : state?.winner === 'draw' ? '和棋' : '黑胜'} room={room.code} open={!!state?.winner} />
       </div>
     )
   }
@@ -43,7 +47,8 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
     return (
       <div className="page">
         <h1>联机象棋 · {room.code}</h1>
-        <OnlineXiangqi state={state} onMove={(fr, fc, tr, tc) => act('move', { fr, fc, tr, tc })} />
+        <OnlineXiangqi state={state} onMove={(fr, fc, tr, tc) => { playSfx(state?.board?.[tr]?.[tc] ? 'capture' : 'move'); act('move', { fr, fc, tr, tc }) }} />
+        <ShareCard gameId="xiangqi" title="联机象棋" result={state?.winner === 'R' ? '红胜' : '黑胜'} room={room.code} open={!!state?.winner} />
       </div>
     )
   }
@@ -73,6 +78,7 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
               <button className="btn gold" onClick={() => act('resolveVotes')}>结算投票</button>
             )}
             {state.winner && <div className="coach">胜负：{state.winner}</div>}
+            <ShareCard gameId="werewolf" title="联机狼人杀" result={String(state.winner || '')} room={room.code} open={!!state.winner} />
           </div>
         )}
       </div>
@@ -112,6 +118,7 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
             )}
             <div className="log" style={{ marginTop: 12 }}>{state.log?.map((l: string, i: number) => <div key={i}>{l}</div>)}</div>
             {state.winner && <div className="coach">胜负：{state.winner}</div>}
+            <ShareCard gameId="avalon" title="联机阿瓦隆" result={String(state.winner || '')} room={room.code} open={!!state.winner} />
           </div>
         )}
       </div>
@@ -128,16 +135,19 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
 
 function OnlineGomoku({ state, onMove }: { state: any; onMove: (r: number, c: number) => void }) {
   if (!state?.board) return <p>同步中…</p>
+  const lm = state.lastMove
   return (
-    <div className="gomoku-board">
-      {state.board.map((row: number[], r: number) =>
-        row.map((cell: number, c: number) => (
-          <div key={`${r}-${c}`} className="gomoku-cell" onClick={() => onMove(r, c)}>
-            {cell === 1 && <div className="stone b" />}
-            {cell === 2 && <div className="stone w" />}
-          </div>
-        ))
-      )}
+    <div className="board-scale">
+      <div className="gomoku-board">
+        {state.board.map((row: number[], r: number) =>
+          row.map((cell: number, c: number) => (
+            <div key={`${r}-${c}`} className={`gomoku-cell ${lm && lm.r === r && lm.c === c ? 'last-move' : ''}`} onClick={() => onMove(r, c)}>
+              {cell === 1 && <div className={`stone b ${lm && lm.r === r && lm.c === c ? 'piece-fly' : ''}`} />}
+              {cell === 2 && <div className={`stone w ${lm && lm.r === r && lm.c === c ? 'piece-fly' : ''}`} />}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   )
 }
@@ -146,20 +156,23 @@ function OnlineChess({ state, onMove }: { state: any; onMove: (fr: number, fc: n
   const [sel, setSel] = useState<{ r: number; c: number } | null>(null)
   if (!state?.board) return <p>同步中…</p>
   const GLYPH: Record<string, string> = { K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟' }
+  const lm = state.lastMove
   return (
-    <div className="chess-board">
-      {state.board.map((row: any[], r: number) =>
-        row.map((p: string | null, c: number) => (
-          <div
-            key={`${r}-${c}`}
-            className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'} ${sel?.r === r && sel?.c === c ? 'selected' : ''}`}
-            onClick={() => {
-              if (!sel) setSel({ r, c })
-              else { onMove(sel.r, sel.c, r, c); setSel(null) }
-            }}
-          >{p ? GLYPH[p] : ''}</div>
-        ))
-      )}
+    <div className="board-scale">
+      <div className="chess-board">
+        {state.board.map((row: any[], r: number) =>
+          row.map((p: string | null, c: number) => (
+            <div
+              key={`${r}-${c}`}
+              className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'} ${sel?.r === r && sel?.c === c ? 'selected' : ''} ${lm && lm.tr === r && lm.tc === c ? 'last-move' : ''}`}
+              onClick={() => {
+                if (!sel) setSel({ r, c })
+                else { onMove(sel.r, sel.c, r, c); setSel(null) }
+              }
+            >{p ? <span className={lm && lm.tr === r && lm.tc === c ? 'piece-fly' : ''}>{GLYPH[p]}</span> : ''}</div>
+          ))
+        )}
+      </div>
     </div>
   )
 }
@@ -167,20 +180,23 @@ function OnlineChess({ state, onMove }: { state: any; onMove: (fr: number, fc: n
 function OnlineXiangqi({ state, onMove }: { state: any; onMove: (fr: number, fc: number, tr: number, tc: number) => void }) {
   const [sel, setSel] = useState<{ r: number; c: number } | null>(null)
   if (!state?.board) return <p>同步中…</p>
+  const lm = state.lastMove
   return (
-    <div className="xq-board">
-      {state.board.map((row: any[], r: number) =>
-        row.map((p: string | null, c: number) => (
-          <div
-            key={`${r}-${c}`}
-            className={`xq-cell ${sel?.r === r && sel?.c === c ? 'selected' : ''}`}
-            onClick={() => {
-              if (!sel) setSel({ r, c })
-              else { onMove(sel.r, sel.c, r, c); setSel(null) }
-            }}
-          >{p || ''}</div>
-        ))
-      )}
+    <div className="board-scale">
+      <div className="xq-board">
+        {state.board.map((row: any[], r: number) =>
+          row.map((p: string | null, c: number) => (
+            <div
+              key={`${r}-${c}`}
+              className={`xq-cell ${sel?.r === r && sel?.c === c ? 'selected' : ''} ${lm && lm.tr === r && lm.tc === c ? 'last-move' : ''}`}
+              onClick={() => {
+                if (!sel) setSel({ r, c })
+                else { onMove(sel.r, sel.c, r, c); setSel(null) }
+              }
+            >{p ? <span className={lm && lm.tr === r && lm.tc === c ? 'piece-fly' : ''}>{p}</span> : ''}</div>
+          ))
+        )}
+      </div>
     </div>
   )
 }

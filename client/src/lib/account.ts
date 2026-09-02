@@ -35,8 +35,23 @@ export function githubLoginUrl() {
   return `${apiBase()}/auth/github?next=${next}`
 }
 
+const HIST_KEY = 'aether-history'
+export type HistItem = { gameId: string; result: string; at: number; nick: string }
+
+export function recordLocalHistory(gameId: string, result: string) {
+  const item: HistItem = { gameId, result, at: Date.now(), nick: getNickname() }
+  const list = getLocalHistory()
+  list.unshift(item)
+  localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, 30)))
+  return list
+}
+export function getLocalHistory(): HistItem[] {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]') } catch { return [] }
+}
+
 export async function postHistory(gameId: string, result: string) {
   const nick = getNickname()
+  recordLocalHistory(gameId, result)
   try {
     await fetch(`${apiBase()}/api/history`, {
       method: 'POST',
@@ -51,9 +66,16 @@ export async function getHistory(nick?: string) {
   try {
     const r = await fetch(`${apiBase()}/api/history?nick=${encodeURIComponent(nick || getNickname())}`, { credentials: 'include' })
     const j = await r.json()
-    return (j.items || []) as { gameId: string; result: string; at: number; nick: string }[]
+    const remote = (j.items || []) as HistItem[]
+    const local = getLocalHistory()
+    const merged = [...local]
+    for (const it of remote) {
+      if (!merged.some((x) => x.at === it.at && x.result === it.result)) merged.push(it)
+    }
+    merged.sort((a, b) => b.at - a.at)
+    return merged.slice(0, 30)
   } catch {
-    return []
+    return getLocalHistory()
   }
 }
 

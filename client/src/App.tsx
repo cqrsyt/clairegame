@@ -12,9 +12,10 @@ import { fetchMe, githubLoginUrl, getNickname, setNickname, type GhUser } from '
 export default function App() {
   const [mute, setMute] = useState(isMuted)
   const [user, setUser] = useState<GhUser>(null)
-  const [oauth, setOauth] = useState(true)
+  const [oauth, setOauth] = useState(false)
   const [msg, setMsg] = useState('')
   const [nick, setNick] = useState(getNickname)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => subscribeMute(() => setMute(isMuted())), [])
   useEffect(() => {
@@ -28,10 +29,10 @@ export default function App() {
     })
   }, [])
 
-  const ghLogin = async () => {
+  const ghLogin = () => {
     setMsg('')
     if (!oauth) {
-      setMsg('主机尚未配置 GitHub OAuth。请在 Render 设置 GITHUB_CLIENT_ID 与 GITHUB_CLIENT_SECRET。')
+      setMsg('还没有接上 GitHub 登录。先用昵称即可，以后在服务器配好即可连接。')
       return
     }
     window.location.href = githubLoginUrl()
@@ -45,15 +46,27 @@ export default function App() {
           <small>星域棋庭</small>
         </NavLink>
         <nav className="nav-links">
-          <NavLink to="/library" className={({ isActive }) => (isActive ? 'active' : '')}>星图库</NavLink>
-          <NavLink to="/lobby" className={({ isActive }) => (isActive ? 'active' : '')}>联机大厅</NavLink>
+          <NavLink to="/library" className={({ isActive }) => (isActive ? 'active' : '')}>目录</NavLink>
+          <NavLink to="/lobby" className={({ isActive }) => (isActive ? 'active' : '')}>房间</NavLink>
           <NavLink to="/history" className={({ isActive }) => (isActive ? 'active' : '')}>战绩</NavLink>
-          <button className="btn icon-btn" onClick={toggleMute} aria-label="静音">{mute ? '静音' : '音效'}</button>
-          <span className="nick-chip">旅人 · {nick}</span>
+          <button className="btn icon-btn" onClick={toggleMute} aria-label="静音">{mute ? '声音已关' : '音效'}</button>
+          {editing ? (
+            <input
+              className="input"
+              style={{ width: 120 }}
+              value={nick}
+              autoFocus
+              onChange={(e) => setNick(e.target.value)}
+              onBlur={() => { setNickname(nick); setEditing(false) }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { setNickname(nick); setEditing(false) } }}
+            />
+          ) : (
+            <button className="btn icon-btn" onClick={() => setEditing(true)}>昵称 · {nick}</button>
+          )}
           {user ? (
             <span className="gh-user"><img src={user.avatar} alt="" width={22} height={22} />{user.login}</span>
           ) : (
-            <button className="btn magenta icon-btn" onClick={ghLogin}>用 GitHub 登录</button>
+            <button className="btn magenta icon-btn" onClick={ghLogin}>{oauth ? '用 GitHub 登录' : '稍后连接 GitHub'}</button>
           )}
         </nav>
       </header>
@@ -67,7 +80,7 @@ export default function App() {
         <Route path="/lobby/:code" element={<Lobby />} />
         <Route path="/history" element={<History />} />
       </Routes>
-      <footer className="footer">星域棋庭 · AETHER TABLE — 霓虹虚空中的桌游门户</footer>
+      <footer className="footer">星域棋庭 · AETHER TABLE · 本地可玩，联机看服务器是否在线</footer>
     </div>
   )
 }

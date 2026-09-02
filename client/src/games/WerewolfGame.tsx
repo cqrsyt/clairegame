@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { playSfx } from '../lib/sfx'
+import ShareCard from '../components/ShareCard'
+import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 import {
   createWerewolf, wolfKill, seerCheck, witchAct, castVote, resolveVotes, hunterShoot, werewolfBotStep,
   type WerewolfState,
@@ -13,9 +17,12 @@ export default function WerewolfGame() {
   )
   const me = state.players.find((p) => p.id === 'you')!
 
+  const lastPhase = useRef(state.phase)
   useEffect(() => {
+    if (state.phase.startsWith('night') && lastPhase.current !== state.phase) playSfx('night')
+    lastPhase.current = state.phase
     if (state.phase === 'ended') return
-    const t = setTimeout(() => setState((s) => werewolfBotStep(s)), 600)
+    const t = setTimeout(() => setState((s) => werewolfBotStep(s)), botThinkMs())
     return () => clearTimeout(t)
   }, [state])
 
@@ -25,7 +32,7 @@ export default function WerewolfGame() {
     <div className="board-wrap" style={{ marginTop: '1rem' }}>
       <div className="holo-panel" style={{ padding: '1rem', flex: 2, minWidth: 300 }}>
         <h2>阶段：{state.phase} · 第 {state.night} 夜</h2>
-        <p>你的身份：<strong style={{ color: 'var(--magenta)' }}>{me.role}</strong> {me.alive ? '' : '（已出局）'}</p>
+                <p>你的身份：<span className={`camp-chip ${me.role === 'werewolf' ? 'camp-wolf' : me.role === 'villager' ? 'camp-villager' : 'camp-god'}`}>{({werewolf:'狼人',villager:'村民',seer:'预言家',witch:'女巫',hunter:'猎人'} as Record<string,string>)[me.role] || me.role}</span> {me.alive ? '' : '（已出局）'}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {state.players.map((p) => (
             <div key={p.id} className="holo-panel" style={{ padding: '0.5rem 0.75rem', opacity: p.alive ? 1 : 0.4 }}>
@@ -78,14 +85,19 @@ export default function WerewolfGame() {
           </div>
         )}
         {state.winner && <div className="coach">胜负：{state.winner === 'wolves' ? '狼人' : '好人'}</div>}
+        <ShareCard gameId="werewolf" title="狼人杀" result={state.winner === 'wolves' ? '狼人胜利' : '好人胜利'} open={!!state.winner} />
       </div>
       <div className="holo-panel side-panel">
-        <h2>事件日志</h2>
+        <LiveGuide title="这一步" lines={[
+          state.phase.startsWith('night') ? '现在是夜晚。身份对应的人才能行动，其他人请等待。' : '白天请根据发言投票。好人要找出狼人，狼人尽量隐藏。',
+          state.winner ? (state.winner === 'wolves' ? '狼人获胜。' : '好人获胜。') : `当前阶段：${state.phase}。`,
+        ]} />
+        <h2>事件记录</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
         <button className="btn magenta" style={{ marginTop: 12 }} onClick={() => setState(createWerewolf([
           { id: 'you', name: '你', isBot: false },
           ...Array.from({ length: 5 }, (_, i) => ({ id: `b${i}`, name: `居民${i + 1}`, isBot: true })),
-        ]))}>新开一局</button>
+        ]))}>再来一局</button>
       </div>
     </div>
   )

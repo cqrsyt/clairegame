@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import ShareCard from '../components/ShareCard'
+import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 import {
   createAvalon, proposeTeam, voteTeam, playQuestCard, assassinate, avalonBotStep, nightInfoFor,
   type AvalonState,
@@ -23,7 +26,7 @@ export default function AvalonGame() {
 
   useEffect(() => {
     if (state.phase === 'ended') return
-    const t = setTimeout(() => setState((s) => avalonBotStep(s)), 700)
+    const t = setTimeout(() => setState((s) => avalonBotStep(s)), botThinkMs())
     return () => clearTimeout(t)
   }, [state])
 
@@ -35,7 +38,7 @@ export default function AvalonGame() {
     <div className="board-wrap" style={{ marginTop: '1rem' }}>
       <div className="holo-panel" style={{ padding: '1rem', flex: 2, minWidth: 300 }}>
         <h2>任务 {state.questIndex + 1}/5 · {state.phase}</h2>
-        <div className="coach">{info}</div>
+        <LiveGuide title="这一步" lines={[info, state.phase === "team_propose" ? "队长正在组队。人数不够就点选同伴。" : state.phase === "team_vote" ? "同意或反对这支队伍。" : state.phase === "quest" ? "出征队员请选择成功或失败。好人只能成功。" : "观察任务结果。蓝为成功，红为失败。"]} />
         <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
           {state.questResults.map((r, i) => (
             <div key={i} className="holo-panel" style={{ padding: '0.4rem 0.7rem', color: r === true ? 'var(--success)' : r === false ? 'var(--danger)' : 'var(--muted)' }}>
@@ -80,11 +83,12 @@ export default function AvalonGame() {
           </div>
         )}
         {state.winner && <div className="coach">胜负：{state.winner === 'good' ? '正派' : '奸徒'}</div>}
+        <ShareCard gameId="avalon" title="阿瓦隆" result={state.winner === 'good' ? '正派胜利' : '奸徒胜利'} open={!!state.winner} />
       </div>
       <div className="holo-panel side-panel">
         <h2>日志</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>你的角色（调试显示）：{me.role}</p>
+        <p style={{ color: 'var(--muted)', fontSize: 13 }}>你的角色：{me.role}</p>
         <button className="btn magenta" onClick={() => {
           const s = createAvalon([
             { id: 'you', name: '你', isBot: false },
@@ -93,7 +97,7 @@ export default function AvalonGame() {
           setState(s)
           setInfo(nightInfoFor(s, 'you'))
           setPick([])
-        }}>新开一局</button>
+        }}>再来一局</button>
       </div>
     </div>
   )

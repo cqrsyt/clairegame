@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { createDoudizhu, playDoudizhu, passDoudizhu, doudizhuBot, type DDState } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
+import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 
 export default function DoudizhuGame() {
   const [state, setState] = useState<DDState>(() => createDoudizhu())
@@ -11,7 +13,7 @@ export default function DoudizhuGame() {
   useEffect(() => {
     if (state.winner !== null) return
     if (!state.players[state.current].isBot) return
-    const t = setTimeout(() => setState((s) => doudizhuBot(s)), 550)
+    const t = setTimeout(() => setState((s) => doudizhuBot(s)), botThinkMs())
     return () => clearTimeout(t)
   }, [state])
 
@@ -55,7 +57,8 @@ export default function DoudizhuGame() {
         {state.winner !== null && <div className="coach">{state.players[state.winner].name} 获胜</div>}
       </div>
       <div className="holo-panel side-panel">
-        <h2>牌局日志</h2>
+        <LiveGuide title="这一步" lines={[state.current===0 ? "选出要出的牌。要比上家大，或者点不要。" : state.players[state.current].name+" 正在出牌。", "你是地主（金色）。农民是绿色。"]} />
+        <h2>记录</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
       </div>
       <ShareCard gameId="doudizhu" title="斗地主" result={state.winner === 0 ? '地主获胜' : '农民获胜'} open={state.winner !== null} />
