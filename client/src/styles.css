@@ -1,7 +1,7 @@
 :root {
-  --void: #1c2e52;
-  --void-2: #2a4470;
-  --panel: rgba(42, 68, 112, 0.78);
+  --void: #243868;
+  --void-2: #3a5a92;
+  --panel: rgba(72, 88, 140, 0.82);
   --panel-border: rgba(160, 245, 255, 0.75);
   --cyan: #3dffff;
   --magenta: #ff4ae8;
@@ -11,6 +11,8 @@
   --ivory: #fff7e8;
   --orange: #ff8a1a;
   --violet: #a78bff;
+  --peach: #ff9a7a;
+  --mint: #7dffc8;
   --text: #fffaf0;
   --muted: #e8eef6;
   --danger: #ff4d6d;
@@ -18,9 +20,9 @@
   --glow-cyan: 0 0 28px rgba(61, 255, 255, 0.55);
   --glow-magenta: 0 0 28px rgba(255, 74, 232, 0.5);
   --glow-gold: 0 0 24px rgba(255, 210, 74, 0.45);
-  --font-display: 'ZCOOL QingKe HuangYou', 'Noto Sans SC', sans-serif;
-  --font-cn: 'Noto Sans SC', 'ZCOOL QingKe HuangYou', sans-serif;
-  --font-accent: 'ZCOOL QingKe HuangYou', 'Noto Sans SC', sans-serif;
+  --font-display: 'ZCOOL KuaiLe', 'Noto Sans SC', sans-serif;
+  --font-cn: 'Noto Sans SC', 'ZCOOL KuaiLe', sans-serif;
+  --font-accent: 'ZCOOL KuaiLe', 'Noto Sans SC', sans-serif;
   --radius: 20px;
   --camp-cyan: #3dffff;
   --camp-magenta: #ff4ae8;
@@ -62,15 +64,15 @@ a:hover { text-shadow: var(--glow-cyan); }
 }
 .brand {
   font-family: var(--font-display);
-  letter-spacing: 0.04em;
-  font-weight: 800;
+  letter-spacing: 0.02em;
+  font-weight: 700;
   font-size: 1.15rem;
   background: linear-gradient(90deg, var(--cyan), var(--magenta), var(--gold));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .brand small {
   display: block; font-family: var(--font-accent); font-size: 0.85rem;
-  letter-spacing: 0.35em; color: var(--ivory); margin-top: 0.15rem;
+  letter-spacing: 0.08em; color: var(--ivory); margin-top: 0.15rem;
   -webkit-text-fill-color: var(--ivory);
 }
 .nav-links { display: flex; gap: 0.7rem; align-items: center; flex-wrap: wrap; }
@@ -100,8 +102,9 @@ a:hover { text-shadow: var(--glow-cyan); }
 
 .btn {
   font-family: var(--font-display);
-  letter-spacing: 0.06em;
-  border: 1px solid var(--cyan);
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  border: 1px solid var(--gold);
   background: linear-gradient(135deg, rgba(61,255,255,0.22), rgba(255,74,232,0.12));
   color: var(--ivory);
   padding: 0.7rem 1.15rem;
@@ -115,6 +118,8 @@ a:hover { text-shadow: var(--glow-cyan); }
 .btn.gold { border-color: var(--gold); color: var(--gold); }
 .btn.lime { border-color: var(--lime); color: var(--lime); }
 .btn.crimson { border-color: var(--crimson); color: var(--crimson); }
+.btn.peach { border-color: var(--peach); color: var(--peach); }
+.btn.mint { border-color: var(--mint); color: var(--mint); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
 .icon-btn { padding: 0.45rem 0.85rem; min-height: 40px; }
 
@@ -140,7 +145,8 @@ a:hover { text-shadow: var(--glow-cyan); }
 .hero h1 {
   font-family: var(--font-display);
   font-size: clamp(2.2rem, 6vw, 4rem);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
+  font-weight: 700;
   margin: 0 0 0.5rem;
   text-shadow: var(--glow-cyan), var(--glow-magenta);
 }
@@ -162,6 +168,40 @@ a:hover { text-shadow: var(--glow-cyan); }
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
+}
+
+.game-card-art {
+  border-radius: 14px;
+  overflow: hidden;
+  height: 88px;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 154, 122, 0.45), transparent 55%),
+    radial-gradient(circle at 82% 70%, rgba(125, 255, 200, 0.35), transparent 50%),
+    linear-gradient(135deg, #3a5a92, #243868);
+}
+.game-card-art img, .game-card-art svg,
+.play-motif img, .play-motif svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.game-card:nth-child(3n) { border-color: rgba(255, 210, 74, 0.85); }
+.game-card:nth-child(3n+1) { border-color: rgba(255, 154, 122, 0.85); }
+.game-card:nth-child(3n+2) { border-color: rgba(125, 255, 200, 0.7); }
+.play-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+.play-motif {
+  width: 140px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #3a5a92, #243868);
 }
 
 .game-card {
