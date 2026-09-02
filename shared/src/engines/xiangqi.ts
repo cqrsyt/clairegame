@@ -321,6 +321,7 @@ export const xiangqiCoach = {
   suggestMove(state: XiangqiState) { return xiangqiAI(state); },
   explain(state: XiangqiState, suggested?: XiangqiMove | null) {
     if (state.winner) return state.winner === 'R' ? '红方将死对方，这一局结束。' : '黑方将死对方，这一局结束。';
+    if (suggested === null) return state.turn === 'R' ? '请您走红棋。' : '请稍候，黑方正在思考。';
     const m = suggested === undefined ? xiangqiAI(state) : suggested;
     const who = isInCheck(state, state.turn)
       ? '将军！请先应将。'
