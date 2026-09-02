@@ -168,6 +168,7 @@ export const checkersCoach = {
   suggestMove(state: CheckersState) { return checkersAI(state); },
   explain(state: CheckersState, suggested?: { from: string; to: string } | null) {
     if (state.winner) return `棋子已经占满对角营地，玩家 ${state.winner} 先到。`;
+    if (suggested === null) return state.turn === 1 ? '请走青色棋。' : '请稍候，对方正在走棋。';
     const m = suggested === undefined ? checkersAI(state) : suggested;
     const who = state.turn === 1 ? '请走青色棋。' : '轮到品红棋。';
     if (!m) return `${who}没有可走的子了。`;

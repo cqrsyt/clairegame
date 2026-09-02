@@ -188,6 +188,7 @@ export const goCoach = {
       const sc = scoreGo(state);
       return `收官了。黑大约 ${sc.b.toFixed(1)}，白大约 ${sc.w.toFixed(1)}（白贴 3.5 目）。${state.winner === 1 ? '黑棋多。' : '白棋多。'}`;
     }
+    if (suggested === null) return state.turn === 1 ? '请您落黑子。' : '请稍候，白棋正在思考。';
     const m = suggested === undefined ? goAI(state) : suggested;
     const who = state.turn === 1 ? '请您落黑子。' : '轮到白棋。';
     if (!m || m === 'pass') return `${who}建议这一手停着，局面已经没有急所了。`;
