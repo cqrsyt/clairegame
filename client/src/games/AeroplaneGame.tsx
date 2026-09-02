@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { createAeroplane, rollDice, movablePlanes, movePlane, aeroAI, aeroCoach, type AeroState, type AeroColor } from '@aether/shared'
+import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 
 export default function AeroplaneGame() {
-  const [state, setState] = useState<AeroState>(() => createAeroplane(['red', 'yellow']))
+  const [state, setState] = useState<AeroState>(() => createAeroplane(['red', 'yellow', 'blue', 'green']))
   const movable = movablePlanes(state)
 
   useEffect(() => {
@@ -12,18 +14,16 @@ export default function AeroplaneGame() {
       if (s.dice === null) s = rollDice(s)
       const m = aeroAI(s)
       if (!m) {
-        // no move — pass
         const i = s.players.indexOf(s.turn)
         setState({ ...s, dice: null, turn: s.players[(i + 1) % s.players.length], extraRoll: false })
         return
       }
-      // ensure dice present
       if (state.dice === null) {
         setState(s)
         return
       }
       setState(movePlane(s, m))
-    }, 500)
+    }, botThinkMs())
     return () => clearTimeout(t)
   }, [state])
 
@@ -34,8 +34,8 @@ export default function AeroplaneGame() {
       <div className="holo-panel" style={{ padding: '1rem', minWidth: 320 }}>
         <div className="aero-board">
           {colors.map((color) => (
-            <div key={color} className="hangar">
-              <strong style={{ color: 'var(--cyan)' }}>{color}</strong>
+            <div key={color} className={`hangar ${color}`}>
+              <strong className={`camp-chip plane-lab ${color}`}>{({red:'红',yellow:'黄',blue:'蓝',green:'绿'} as const)[color]}</strong>
               <div>
                 {state.planes.filter((p) => p.color === color).map((p) => {
                   const can = movable.some((m) => m.color === p.color && m.id === p.id)
@@ -46,7 +46,7 @@ export default function AeroplaneGame() {
                       disabled={!can}
                       onClick={() => setState(movePlane(state, { color: p.color, id: p.id }))}
                     >
-                      {p.pos === -1 ? '坞' : p.pos === 57 ? '终' : p.pos}
+                      {p.pos === -1 ? '坝' : p.pos === 57 ? '终' : p.pos}
                     </button>
                   )
                 })}
@@ -68,8 +68,11 @@ export default function AeroplaneGame() {
       </div>
       <div className="holo-panel side-panel">
         <h2>飞行棋</h2>
-        <div className="coach">{aeroCoach.explain(state)}</div>
-        <button className="btn magenta" onClick={() => setState(createAeroplane(['red', 'yellow']))}>新局</button>
+        <LiveGuide title="这一步" lines={[
+          aeroCoach.explain(state),
+          state.turn === 'red' ? (state.dice === null ? '请掷骰。掷到 6 才可从机库起飞。' : '点一架高亮的飞机前进。撞到别人会把它送回机库。') : '电脑正在走棋，四色飞机很好认：红、黄、蓝、绿。',
+        ]} />
+        <button className="btn magenta" onClick={() => setState(createAeroplane(['red', 'yellow', 'blue', 'green']))}>再来一局</button>
       </div>
     </div>
   )

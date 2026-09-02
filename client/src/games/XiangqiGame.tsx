@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createXiangqi, xiangqiLegalFrom, applyXiangqiMove, xiangqiAI, xiangqiCoach, type XiangqiState, type XPiece } from '@aether/shared'
+import ShareCard from '../components/ShareCard'
+import { playSfx } from '../lib/sfx'
+import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 
 const LABEL: Record<string, string> = {
   RK: '帅', RA: '仕', RB: '相', RN: '马', RR: '车', RC: '炮', RP: '兵',
@@ -11,13 +15,17 @@ export default function XiangqiGame() {
   const [sel, setSel] = useState<{ r: number; c: number } | null>(null)
   const [vsAI, setVsAI] = useState(true)
   const targets = useMemo(() => (sel ? xiangqiLegalFrom(state, sel.r, sel.c) : []), [state, sel])
+  const lm = state.lastMove
 
   useEffect(() => {
     if (!vsAI || state.winner || state.turn !== 'B') return
     const t = setTimeout(() => {
       const m = xiangqiAI(state)
-      if (m) setState((s) => applyXiangqiMove(s, m.fr, m.fc, m.tr, m.tc))
-    }, 400)
+      if (m) {
+        playSfx(state.board[m.tr][m.tc] ? 'capture' : 'move')
+        setState((s) => applyXiangqiMove(s, m.fr, m.fc, m.tr, m.tc))
+      }
+    }, botThinkMs())
     return () => clearTimeout(t)
   }, [state, vsAI])
 
@@ -25,6 +33,7 @@ export default function XiangqiGame() {
     if (state.winner) return
     if (vsAI && state.turn === 'B') return
     if (sel && targets.some((t) => t.r === r && t.c === c)) {
+      playSfx(state.board[r][c] ? 'capture' : 'move')
       setState(applyXiangqiMove(state, sel.r, sel.c, r, c))
       setSel(null)
       return
@@ -35,38 +44,44 @@ export default function XiangqiGame() {
   }
 
   return (
-    <div className="board-wrap" style={{ marginTop: '1rem' }}>
-      <div className="xq-board">
-        {state.board.map((row, r) =>
-          row.map((p: XPiece, c) => {
-            const selected = sel?.r === r && sel?.c === c
-            const hl = targets.some((t) => t.r === r && t.c === c)
-            return (
-              <div
-                key={`${r}-${c}`}
-                className={`xq-cell ${p?.startsWith('R') ? 'red' : ''} ${selected ? 'selected' : ''} ${hl ? 'hl' : ''}`}
-                onClick={() => click(r, c)}
-              >
-                {p ? LABEL[p] : (r === 4 || r === 5) && c === 4 ? '楚' : ''}
-              </div>
-            )
-          })
-        )}
+    <div className="board-wrap play-layout" style={{ marginTop: '1rem' }}>
+      <div className="board-scale">
+        <div className="xq-board">
+          {state.board.map((row, r) =>
+            row.map((p: XPiece, c) => {
+              const selected = sel?.r === r && sel?.c === c
+              const hl = targets.some((t) => t.r === r && t.c === c)
+              const last = lm && ((lm.tr === r && lm.tc === c) || (lm.fr === r && lm.fc === c))
+              return (
+                <div
+                  key={`${r}-${c}`}
+                  className={`xq-cell ${selected ? 'selected' : ''} ${hl ? 'hl' : ''} ${last ? 'last-move' : ''}`}
+                  onClick={() => click(r, c)}
+                >
+                  {p ? (
+                    <span className={`xq-disc ${p.startsWith('R') ? 'red' : 'black'} ${lm && lm.tr === r && lm.tc === c ? 'piece-fly' : ''}`}>{LABEL[p]}</span>
+                  ) : ((r === 4 || r === 5) && c === 4 ? '河' : '')}
+                </div>
+              )
+            })
+          )}
+        </div>
       </div>
-      <div className="holo-panel side-panel">
+      <div className="holo-panel side-panel coach-panel">
         <h2>中国象棋</h2>
-        <div className="coach">{xiangqiCoach.explain(state)}</div>
+        <LiveGuide title="这一步" lines={[xiangqiCoach.explain(state), state.turn === 'R' ? '红字棋是你的；点棋子后，亮格就是能走的位置。' : '黑方正在思考，请稍候。']} />
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战 AI（你执红）
+          <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战电脑（你执红）
         </label>
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           <button className="btn" onClick={() => {
             const m = xiangqiCoach.suggestMove(state)
             if (m) setSel({ r: m.fr, c: m.fc })
-          }}>AI 教练建议</button>
-          <button className="btn magenta" onClick={() => { setState(createXiangqi()); setSel(null) }}>新局</button>
+          }}>请教练看一眼</button>
+          <button className="btn magenta" onClick={() => { setState(createXiangqi()); setSel(null) }}>再来一局</button>
         </div>
       </div>
+      <ShareCard gameId="xiangqi" title="中国象棋" result={state.winner === 'R' ? '红方胜利' : '黑方胜利'} open={!!state.winner} />
     </div>
   )
 }

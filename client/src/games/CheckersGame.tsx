@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createCheckers, destinations, moveChecker, checkersAI, checkersCoach, STAR_CELLS, type CheckersState } from '@aether/shared'
+import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 
 export default function CheckersGame() {
   const [state, setState] = useState<CheckersState>(() => createCheckers())
@@ -11,7 +13,7 @@ export default function CheckersGame() {
     const t = setTimeout(() => {
       const m = checkersAI(state)
       if (m) setState((s) => moveChecker(s, m.from, m.to))
-    }, 400)
+    }, botThinkMs())
     return () => clearTimeout(t)
   }, [state, vsAI])
 
@@ -46,7 +48,7 @@ export default function CheckersGame() {
       </div>
       <div className="holo-panel side-panel">
         <h2>跳棋</h2>
-        <div className="coach">{checkersCoach.explain(state)}</div>
+        <LiveGuide title="这一步" lines={[checkersCoach.explain(state), "青色是你的棋，品红是对方。能跳就连跳。"]} />
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战 AI
         </label>
