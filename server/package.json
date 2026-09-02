@@ -10,6 +10,9 @@
   },
   "dependencies": {
     "@aether/shared": "*",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "socket.io": "^4.8.1",
@@ -17,9 +20,6 @@
     "uuid": "^11.0.5"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.10.5",
     "tsx": "^4.19.2"
   }
 }
