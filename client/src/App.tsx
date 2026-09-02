@@ -6,6 +6,7 @@ import Encyclopedia from './pages/Encyclopedia'
 import PlayPage from './pages/PlayPage'
 import Lobby from './pages/Lobby'
 import History from './pages/History'
+import Fit from './pages/Fit'
 import { isMuted, subscribeMute, toggleMute } from './lib/sfx'
 import { fetchMe, githubLoginUrl, getNickname, setNickname, type GhUser } from './lib/account'
 
@@ -47,6 +48,7 @@ export default function App() {
         </NavLink>
         <nav className="nav-links">
           <NavLink to="/library" className={({ isActive }) => (isActive ? 'active' : '')}>目录</NavLink>
+          <NavLink to="/fit" className={({ isActive }) => (isActive ? 'active' : '')}>择席</NavLink>
           <NavLink to="/lobby" className={({ isActive }) => (isActive ? 'active' : '')}>房间</NavLink>
           <NavLink to="/history" className={({ isActive }) => (isActive ? 'active' : '')}>战绩</NavLink>
           <button className="btn icon-btn" onClick={toggleMute} aria-label="静音">{mute ? '声音已关' : '音效'}</button>
@@ -74,6 +76,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/library" element={<Library />} />
+        <Route path="/fit" element={<Fit />} />
         <Route path="/game/:id" element={<Encyclopedia />} />
         <Route path="/play/:id" element={<PlayPage />} />
         <Route path="/lobby" element={<Lobby />} />

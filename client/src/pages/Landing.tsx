@@ -39,6 +39,7 @@ export default function Landing() {
       </p>
       <div className="hero-cta">
         <Link className="btn" to="/library">浏览游戏</Link>
+        <Link className="btn peach" to="/fit">择席 · 今晚适合哪一盘</Link>
         <Link className="btn magenta" to="/play/xiangqi">下一盘象棋</Link>
         <Link className="btn gold" to="/lobby">开房间</Link>
       </div>
@@ -47,6 +48,11 @@ export default function Landing() {
           <GameMotif key={id} id={id} />
         ))}
       </div>
+      <Link to="/fit" className="holo-panel" style={{ display: 'block', marginTop: '2.25rem', padding: '1.35rem 1.5rem', color: 'inherit', textAlign: 'left' }}>
+        <div style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.16em', color: 'var(--gold)', fontSize: '0.75rem' }}>AETHER TABLE · 择席</div>
+        <h3 style={{ fontFamily: 'var(--font-accent)', color: 'var(--ivory)', margin: '0.35rem 0 0.45rem', fontSize: '1.35rem' }}>还没想好坐哪一席？</h3>
+        <p style={{ margin: 0, color: 'var(--muted)', lineHeight: 1.75 }}>十道情景小问，按你的算路、隐匿、围桌与运气，从本馆目录里点两三盘。画像会留在棋庭，下次还能打开。</p>
+      </Link>
       <div style={{ marginTop: '3rem' }} className="holo-panel">
         <div style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: '1rem' }}>
           {[
