@@ -286,6 +286,8 @@ function AeroBoard({
 export default function AeroplaneGame() {
   const [state, setState] = useState<AeroState>(() => createAeroplane(['red', 'yellow', 'blue', 'green']))
   const movable = useMemo(() => movablePlanes(state), [state])
+  const myTurn = !state.winner && state.turn === 'red'
+  const advice = useMemo(() => (myTurn ? aeroCoach.suggestMove(state) : null), [state, myTurn])
 
   useEffect(() => {
     if (state.winner || state.turn === 'red') return
@@ -326,10 +328,21 @@ export default function AeroplaneGame() {
       </div>
       <div className="holo-panel side-panel">
         <h2>飞行棋</h2>
-        <LiveGuide title="这一步" lines={[
-          aeroCoach.explain(state),
-          state.turn === 'red' ? (state.dice === null ? '请掷骰。掷到 6 才可从机库起飞。' : '点一架高亮的飞机前进。撞到别人会把它送回机库。') : '电脑正在走棋，四色飞机很好认：红、黄、蓝、绿。',
-        ]} />
+        <LiveGuide
+          title="助手"
+          lines={[aeroCoach.explain(state, advice), myTurn ? (state.dice === null ? '请掷骰。掷到 6 才可从机库起飞。' : '点一架高亮的飞机前进。') : '电脑正在走棋。']}
+          suggestion={
+            !advice ? null
+            : advice.action === 'roll' ? '建议：掷骰'
+            : advice.action === 'pass' ? '建议：跳过'
+            : `建议：走红方 ${advice.id + 1} 号机`
+          }
+          onApply={advice && myTurn ? () => {
+            if (advice.action === 'roll') setState(rollDice(state))
+            else if (advice.action === 'pass') setState(passTurn(state))
+            else setState(movePlane(state, { color: advice.color, id: advice.id }))
+          } : null}
+        />
         <p style={{ color: 'var(--ivory)', fontSize: '0.9rem' }}>
           你是<span className="camp-chip red">红方</span>
           {' '}当前：<strong>{CAMP[state.turn].label}方</strong>
