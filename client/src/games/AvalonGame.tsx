@@ -2,10 +2,44 @@ import { useEffect, useState } from 'react'
 import ShareCard from '../components/ShareCard'
 import { botThinkMs } from '../lib/botDelay'
 import LiveGuide from '../components/LiveGuide'
+import PortraitCard from '../components/PortraitCard'
 import {
   createAvalon, proposeTeam, voteTeam, playQuestCard, assassinate, avalonBotStep, nightInfoFor,
   type AvalonState,
 } from '@aether/shared'
+
+const PHASE_CN: Record<string, string> = {
+  team_propose: '组队',
+  team_vote: '表决组队',
+  quest: '出征',
+  assassinate: '刺杀',
+  ended: '圣杯落定',
+}
+
+function PhaseBanner({ phase, quest }: { phase: string; quest: number }) {
+  return (
+    <div className="phase-banner">
+      <svg viewBox="0 0 640 132" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <rect width="640" height="132" fill="#4a3058" />
+        <ellipse cx="320" cy="70" rx="70" ry="46" fill="none" stroke="#ffc85a" strokeWidth="3" />
+        <rect x="312" y="28" width="16" height="78" rx="3" fill="#e8dcc8" />
+        <polygon points="320,12 348,36 292,36" fill="#ffc85a" />
+        <ellipse cx="320" cy="88" rx="18" ry="10" fill="#ffb08a" />
+        {phase === 'assassinate' && <path d="M80 30 L200 90 L190 98 L70 40 Z" fill="#c9c0d0" stroke="#ffc85a" />}
+        {phase === 'quest' && (
+          <>
+            <polygon points="80,90 110,30 140,90" fill="#ffc85a" opacity="0.7" />
+            <polygon points="500,90 530,30 560,90" fill="#ffb08a" opacity="0.7" />
+          </>
+        )}
+        {[60, 120, 520, 580].map((x, i) => (
+          <circle key={x} cx={x} cy={24 + i * 8} r="3" fill="#ffc85a" />
+        ))}
+      </svg>
+      <div className="phase-title">{PHASE_CN[phase] || phase} · 任务 {quest + 1}/5</div>
+    </div>
+  )
+}
 
 export default function AvalonGame() {
   const [state, setState] = useState<AvalonState>(() =>
@@ -31,61 +65,62 @@ export default function AvalonGame() {
   }, [state])
 
   const toggle = (id: string) => {
-    setPick((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < need ? [...prev, id] : prev))
+    if (state.phase === 'team_propose' && leader.id === 'you') {
+      setPick((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < need ? [...prev, id] : prev))
+    } else if (state.phase === 'assassinate' && me.role === 'assassin' && id !== me.id) {
+      setState(assassinate(state, id))
+    }
   }
 
   return (
     <div className="board-wrap" style={{ marginTop: '1rem' }}>
-      <div className="holo-panel" style={{ padding: '1rem', flex: 2, minWidth: 300 }}>
-        <h2>任务 {state.questIndex + 1}/5 · {state.phase}</h2>
-        <LiveGuide title="这一步" lines={[info, state.phase === "team_propose" ? "队长正在组队。人数不够就点选同伴。" : state.phase === "team_vote" ? "同意或反对这支队伍。" : state.phase === "quest" ? "出征队员请选择成功或失败。好人只能成功。" : "观察任务结果。蓝为成功，红为失败。"]} />
-        <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
+      <div className="holo-panel phase-scene" style={{ padding: '1rem', flex: 2, minWidth: 300 }}>
+        <PhaseBanner phase={state.phase} quest={state.questIndex} />
+        <div className="quest-lights">
           {state.questResults.map((r, i) => (
-            <div key={i} className="holo-panel" style={{ padding: '0.4rem 0.7rem', color: r === true ? 'var(--success)' : r === false ? 'var(--danger)' : 'var(--muted)' }}>
-              Q{i + 1}:{r === null ? '·' : r ? '成' : '败'}
-            </div>
+            <div key={i} className={`quest-light${r === true ? ' ok' : r === false ? ' fail' : ''}`} title={`Q${i + 1}`} />
           ))}
         </div>
         <p>队长：{leader.name} · 需要 {need} 人 · 拒队连击 {state.rejectStreak}/5</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {state.players.map((p) => (
-            <button
+        <div className="portrait-grid">
+          {state.players.map((p, i) => (
+            <PortraitCard
               key={p.id}
-              className={`btn ${pick.includes(p.id) ? 'gold' : ''}`}
+              name={p.name}
+              index={i}
+              selected={pick.includes(p.id) || state.proposed.includes(p.id)}
+              hint={p.id === leader.id ? '队长' : p.isBot ? 'BOT' : 'YOU'}
               onClick={() => toggle(p.id)}
-            >{p.name}</button>
+              disabled={
+                (state.phase !== 'team_propose' || leader.id !== 'you') &&
+                !(state.phase === 'assassinate' && me.role === 'assassin' && p.id !== me.id)
+              }
+            />
           ))}
         </div>
 
         {state.phase === 'team_propose' && leader.id === 'you' && (
-          <button className="btn" style={{ marginTop: 12 }} disabled={pick.length !== need} onClick={() => setState(proposeTeam(state, 'you', pick))}>
+          <button className="btn" style={{ marginTop: 8 }} disabled={pick.length !== need} onClick={() => setState(proposeTeam(state, 'you', pick))}>
             提交提名
           </button>
         )}
         {state.phase === 'team_vote' && state.votes['you'] === undefined && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 8 }}>
             <button className="btn" onClick={() => setState(voteTeam(state, 'you', true))}>同意</button>
             <button className="btn magenta" style={{ marginLeft: 8 }} onClick={() => setState(voteTeam(state, 'you', false))}>反对</button>
           </div>
         )}
         {state.phase === 'quest' && state.proposed.includes('you') && state.questCards['you'] === undefined && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 8 }}>
             <button className="btn" onClick={() => setState(playQuestCard(state, 'you', true))}>任务成功</button>
             <button className="btn magenta" style={{ marginLeft: 8 }} onClick={() => setState(playQuestCard(state, 'you', false))}>任务失败</button>
-          </div>
-        )}
-        {state.phase === 'assassinate' && me.role === 'assassin' && (
-          <div style={{ marginTop: 12 }}>
-            <h2>刺杀梅林</h2>
-            {state.players.filter((p) => p.id !== me.id).map((p) => (
-              <button key={p.id} className="btn gold" style={{ margin: 4 }} onClick={() => setState(assassinate(state, p.id))}>{p.name}</button>
-            ))}
           </div>
         )}
         {state.winner && <div className="coach">胜负：{state.winner === 'good' ? '正派' : '奸徒'}</div>}
         <ShareCard gameId="avalon" title="阿瓦隆" result={state.winner === 'good' ? '正派胜利' : '奸徒胜利'} open={!!state.winner} />
       </div>
       <div className="holo-panel side-panel">
+        <LiveGuide title="这一步" lines={[info, state.phase === 'team_propose' ? '点选肖像组队。' : state.phase === 'team_vote' ? '同意或反对这支队伍。' : state.phase === 'quest' ? '出征队员选择成功或失败。' : state.phase === 'assassinate' ? '点选肖像刺杀梅林。' : '观察任务灯。']} />
         <h2>日志</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
         <p style={{ color: 'var(--muted)', fontSize: 13 }}>你的角色：{me.role}</p>
