@@ -358,6 +358,7 @@ export const chessCoach = {
     if (state.winner === 'draw') return '双方无子可动，这是和棋。';
     if (state.winner) return state.winner === 'w' ? '白方将死，这一局结束。' : '黑方将死，这一局结束。';
     const names: Record<string, string> = { p: '兵', n: '马', b: '象', r: '车', q: '后', k: '王' };
+    if (suggested === null) return state.turn === 'w' ? '请您走白棋。' : '请稍候，黑方正在思考。';
     const m = suggested === undefined ? chessAI(state) : suggested;
     const who = inCheck(state) ? '将军！请先应将。' : (state.turn === 'w' ? '请您走白棋。' : '轮到黑棋。');
     if (!m) return `${who}没有可走的棋了。`;
