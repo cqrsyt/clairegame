@@ -254,6 +254,44 @@ function priorityKill(state: WerewolfState) {
   return seer || witch || hunter || pickStable(prey, (p) => p.id);
 }
 
+function nameOf(state: WerewolfState, id: string) {
+  return state.players.find((p) => p.id === id)?.name || id;
+}
+
+/** Public day speech: short, in-character, no outing wolves or dumping seer notes. */
+export function werewolfDayTalkLines(state: WerewolfState): string[] {
+  const living = alive(state);
+  const bots = living.filter((p) => p.isBot).sort((a, b) => a.id.localeCompare(b.id));
+  if (!bots.length) return [];
+  const speakers: WWPlayer[] = [];
+  const seer = bots.find((p) => p.role === 'seer');
+  if (seer) speakers.push(seer);
+  for (const p of bots) {
+    if (speakers.length >= 3) break;
+    if (!speakers.some((x) => x.id === p.id)) speakers.push(p);
+  }
+  const lines: string[] = [];
+  for (const p of speakers) {
+    const others = living.filter((x) => x.id !== p.id);
+    const safePool = p.role === 'werewolf' ? others.filter((o) => o.role !== 'werewolf') : others;
+    const suspect = pickStable(safePool.length ? safePool : others, (x) => x.id);
+    const sn = suspect ? suspect.name : '那位';
+    if (p.role === 'seer' && state.seerResult?.isWolf) {
+      const seen = nameOf(state, state.seerResult.id);
+      lines.push(`${p.name}：「昨夜我对「${seen}」心里发紧，今天先把他放在明处。」`);
+    } else if (p.role === 'seer') {
+      lines.push(`${p.name}：「我这边还没看清，先听大家说两句。」`);
+    } else if (p.role === 'werewolf') {
+      lines.push(`${p.name}：「我是好人。倒的人太突然，我更怀疑「${sn}」。」`);
+    } else if (p.role === 'witch' || p.role === 'hunter') {
+      lines.push(`${p.name}：「先别急着对线。「${sn}」昨晚的位置有点巧。」`);
+    } else {
+      lines.push(`${p.name}：「我没什么线索，先听神职，再看看「${sn}」。」`);
+    }
+  }
+  return lines;
+}
+
 /** Advance bots for current phase */
 export function werewolfBotStep(state: WerewolfState): WerewolfState {
   const bots = state.players.filter((p) => p.isBot && p.alive);
@@ -292,7 +330,9 @@ export function werewolfBotStep(state: WerewolfState): WerewolfState {
     }
   }
   if (state.phase === 'day_talk') {
-    return { ...state, phase: 'day_vote' };
+    const talks = werewolfDayTalkLines(state);
+    const log = talks.length ? [...state.log, ...talks] : state.log;
+    return { ...state, phase: 'day_vote', log };
   }
   if (state.phase === 'day_vote') {
     for (const b of bots) {
@@ -421,4 +461,3 @@ export const werewolfCoach = {
   },
   legalHighlights() { return []; },
 };
-
