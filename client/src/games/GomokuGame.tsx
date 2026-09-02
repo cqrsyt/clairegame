@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { createGomoku, playGomoku, gomokuAI, gomokuCoach, type GomokuState } from '@aether/shared'
+import { useEffect, useMemo, useState } from 'react'
+import { createGomoku, playGomoku, gomokuAI, gomokuCoach, gomokuPosLabel, type GomokuState } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
@@ -9,6 +9,8 @@ export default function GomokuGame() {
   const [state, setState] = useState<GomokuState>(() => createGomoku())
   const [vsAI, setVsAI] = useState(true)
   const lm = state.lastMove
+  const myTurn = !state.winner && !(vsAI && state.turn === 2)
+  const move = useMemo(() => (myTurn ? gomokuCoach.suggestMove(state) : null), [state, myTurn])
 
   useEffect(() => {
     if (!vsAI || state.winner || state.turn !== 2) return
@@ -46,15 +48,16 @@ export default function GomokuGame() {
       </div>
       <div className="holo-panel side-panel coach-panel">
         <h2>五子棋</h2>
-        <LiveGuide title="这一步" lines={[gomokuCoach.explain(state), "黑子实心、白子浅色，连成五子即胜。"]} />
+        <LiveGuide
+          title="助手"
+          lines={[gomokuCoach.explain(state, move), vsAI && state.turn === 2 ? '白棋正在思考，请稍候。' : '']}
+          suggestion={move ? `建议：${gomokuPosLabel(move)}` : null}
+          onApply={move && myTurn ? () => { playSfx('move'); setState(playGomoku(state, move.r, move.c)) } : null}
+        />
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战电脑（你执黑）
         </label>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={() => {
-            const m = gomokuCoach.suggestMove(state)
-            if (m) setState(playGomoku(state, m.r, m.c))
-          }}>请教练落一子</button>
           <button className="btn magenta" onClick={() => setState(createGomoku())}>再来一局</button>
         </div>
       </div>

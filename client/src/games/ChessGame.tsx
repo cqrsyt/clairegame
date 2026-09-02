@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createChess, chessLegalFrom, applyChessMove, chessAI, chessCoach, type ChessState } from '@aether/shared'
+import { createChess, chessLegalFrom, applyChessMove, chessAI, chessCoach, chessMoveLabel, type ChessState } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
@@ -16,6 +16,8 @@ export default function ChessGame() {
   const [vsAI, setVsAI] = useState(true)
   const targets = useMemo(() => (sel ? chessLegalFrom(state, sel.r, sel.c) : []), [state, sel])
   const lm = state.lastMove
+  const myTurn = !state.winner && !(vsAI && state.turn === 'b')
+  const move = useMemo(() => (myTurn ? chessCoach.suggestMove(state) : null), [state, myTurn])
 
   useEffect(() => {
     if (!vsAI || state.winner || state.turn !== 'b') return
@@ -48,11 +50,6 @@ export default function ChessGame() {
     } else setSel(null)
   }
 
-  const suggest = () => {
-    const m = chessCoach.suggestMove(state)
-    if (m) setSel({ r: m.fr, c: m.fc })
-  }
-
   return (
     <div className="board-wrap play-layout" style={{ marginTop: '1rem' }}>
       <div className="board-scale">
@@ -78,12 +75,20 @@ export default function ChessGame() {
       </div>
       <div className="holo-panel side-panel coach-panel">
         <h2>国际象棋</h2>
-        <LiveGuide title="这一步" lines={[chessCoach.explain(state)]} />
+        <LiveGuide
+          title="助手"
+          lines={[chessCoach.explain(state, move), myTurn ? '点棋子后，亮格就是能走的位置。' : '黑方正在思考，请稍候。']}
+          suggestion={move ? `建议：${chessMoveLabel(state, move)}` : null}
+          onApply={move && myTurn ? () => {
+            playSfx(state.board[move.tr][move.tc] ? 'capture' : 'move')
+            setState(applyChessMove(state, move.fr, move.fc, move.tr, move.tc))
+            setSel(null)
+          } : null}
+        />
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战电脑（你执白）
         </label>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={suggest}>请教练看一眼</button>
           <button className="btn magenta" onClick={() => { setState(createChess()); setSel(null) }}>再来一局</button>
         </div>
       </div>

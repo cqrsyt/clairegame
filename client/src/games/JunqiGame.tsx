@@ -3,12 +3,15 @@ import { createJunqi, junqiLegal, applyJunqi, junqiAI, junqiCoach, ANIMALS, isRi
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 
 export default function JunqiGame() {
   const [state, setState] = useState<JunqiState>(() => createJunqi())
   const [sel, setSel] = useState<{ r: number; c: number } | null>(null)
   const [vsAI, setVsAI] = useState(true)
   const dest = useMemo(() => sel ? junqiLegal(state, sel.r, sel.c) : [], [state, sel])
+  const myTurn = state.winner === null && !(vsAI && state.turn === 1)
+  const move = useMemo(() => (myTurn ? junqiCoach.suggestMove(state) : null), [state, myTurn])
 
   useEffect(() => {
     if (!vsAI || state.winner !== null || state.turn !== 1) return
@@ -60,7 +63,16 @@ export default function JunqiGame() {
       </div>
       <div className="holo-panel side-panel coach-panel">
         <h2>军棋 · 斗兽棋</h2>
-        <div className="coach">{junqiCoach.explain(state)}</div>
+        <LiveGuide
+          title="助手"
+          lines={[junqiCoach.explain(state, move)]}
+          suggestion={move ? `建议：第 ${move.fr + 1} 行第 ${move.fc + 1} 列 → 第 ${move.tr + 1} 行第 ${move.tc + 1} 列` : null}
+          onApply={move && myTurn ? () => {
+            playSfx(state.board[move.tr][move.tc] ? 'capture' : 'move')
+            setState(applyJunqi(state, move.fr, move.fc, move.tr, move.tc))
+            setSel(null)
+          } : null}
+        />
         <p><span className="camp-chip camp-wolf">红方 · 你</span>　<span className="camp-chip camp-good">蓝方 · 电脑</span></p>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战电脑

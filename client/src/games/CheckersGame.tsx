@@ -7,6 +7,8 @@ export default function CheckersGame() {
   const [state, setState] = useState<CheckersState>(() => createCheckers())
   const [vsAI, setVsAI] = useState(true)
   const dests = useMemo(() => (state.selected ? destinations(state, state.selected) : []), [state])
+  const myTurn = !state.winner && !(vsAI && state.turn === 2)
+  const move = useMemo(() => (myTurn ? checkersCoach.suggestMove(state) : null), [state, myTurn])
 
   useEffect(() => {
     if (!vsAI || state.winner || state.turn !== 2) return
@@ -48,7 +50,12 @@ export default function CheckersGame() {
       </div>
       <div className="holo-panel side-panel">
         <h2>跳棋</h2>
-        <LiveGuide title="这一步" lines={[checkersCoach.explain(state), "青色是你的棋，品红是对方。能跳就连跳。"]} />
+        <LiveGuide
+          title="助手"
+          lines={[checkersCoach.explain(state, move), myTurn ? '青色是你的棋，品红是对方。能跳就连跳。' : '对方正在走棋。']}
+          suggestion={move ? `建议：(${move.from}) → (${move.to})` : null}
+          onApply={move && myTurn ? () => setState(moveChecker(state, move.from, move.to)) : null}
+        />
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战 AI
         </label>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createXiangqi, xiangqiLegalFrom, applyXiangqiMove, xiangqiAI, xiangqiCoach, type XiangqiState, type XPiece } from '@aether/shared'
+import { createXiangqi, xiangqiLegalFrom, applyXiangqiMove, xiangqiAI, xiangqiCoach, xiangqiNotation, type XiangqiState, type XPiece } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
@@ -16,6 +16,8 @@ export default function XiangqiGame() {
   const [vsAI, setVsAI] = useState(true)
   const targets = useMemo(() => (sel ? xiangqiLegalFrom(state, sel.r, sel.c) : []), [state, sel])
   const lm = state.lastMove
+  const myTurn = !state.winner && !(vsAI && state.turn === 'B')
+  const move = useMemo(() => (myTurn ? xiangqiCoach.suggestMove(state) : null), [state, myTurn])
 
   useEffect(() => {
     if (!vsAI || state.winner || state.turn !== 'B') return
@@ -69,15 +71,20 @@ export default function XiangqiGame() {
       </div>
       <div className="holo-panel side-panel coach-panel">
         <h2>中国象棋</h2>
-        <LiveGuide title="这一步" lines={[xiangqiCoach.explain(state), state.turn === 'R' ? '红字棋是你的；点棋子后，亮格就是能走的位置。' : '黑方正在思考，请稍候。']} />
+        <LiveGuide
+          title="助手"
+          lines={[xiangqiCoach.explain(state, move), myTurn ? '红字棋是你的；点棋子后，亮格就是能走的位置。' : '黑方正在思考，请稍候。']}
+          suggestion={move ? `建议：${xiangqiNotation(state, move)}` : null}
+          onApply={move && myTurn ? () => {
+            playSfx(state.board[move.tr][move.tc] ? 'capture' : 'move')
+            setState(applyXiangqiMove(state, move.fr, move.fc, move.tr, move.tc))
+            setSel(null)
+          } : null}
+        />
         <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input type="checkbox" checked={vsAI} onChange={(e) => setVsAI(e.target.checked)} /> 对战电脑（你执红）
         </label>
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          <button className="btn" onClick={() => {
-            const m = xiangqiCoach.suggestMove(state)
-            if (m) setSel({ r: m.fr, c: m.fc })
-          }}>请教练看一眼</button>
           <button className="btn magenta" onClick={() => { setState(createXiangqi()); setSel(null) }}>再来一局</button>
         </div>
       </div>
