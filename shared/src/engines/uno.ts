@@ -217,6 +217,7 @@ export const unoCoach = {
   explain(state: UnoState, suggested?: UnoAdvice | null) {
     if (state.winner !== null) return `${state.players[state.winner].name} 已经出完牌。`;
     if (state.current !== 0) return `${state.players[state.current].name} 正在出牌。当前颜色是${COLOR_ZH[state.color]}。`;
+    if (suggested === null) return `${state.players[state.current].name} 正在出牌。当前颜色是${COLOR_ZH[state.color]}。`;
     const m = suggested === undefined ? unoSuggest(state, 0) : suggested;
     if (!m || m.action === 'draw') return `当前颜色是${COLOR_ZH[state.color]}。手里没有能配上的牌，建议摸一张。`;
     const lab = labelUno(m.card);
