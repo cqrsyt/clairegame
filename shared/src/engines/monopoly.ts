@@ -93,31 +93,45 @@ export function monoEndTurn(s: MonoState): MonoState {
   return { ...s, dice: null, turn: nextTurn(s) };
 }
 
+function shouldBuy(cash: number, tile: MonoTile) {
+  if (tile.kind !== 'prop' || tile.owner !== null) return false;
+  if (cash < tile.price + 220) return false; // 留过路费和税
+  const roi = tile.rent / Math.max(1, tile.price);
+  return roi >= 0.22 || tile.price <= 120 || cash >= tile.price + 400;
+}
+
 export function monoBot(s: MonoState): MonoState {
   const p = s.players[s.turn];
   if (!p.isBot || s.winner !== null) return s;
   let cur = s;
   if (cur.dice === null) cur = monoRoll(cur);
-  const tile = cur.tiles[cur.players[cur.turn].pos];
-  if (tile.kind === 'prop' && tile.owner === null && cur.players[cur.turn].cash >= tile.price + 80) {
-    cur = monoBuy(cur);
-  }
+  if (cur.winner !== null) return cur;
+  const me = cur.players[cur.turn];
+  const tile = cur.tiles[me.pos];
+  if (shouldBuy(me.cash, tile)) cur = monoBuy(cur);
   return monoEndTurn(cur);
 }
 
 export const monopolyCoach = {
-  suggestMove(state: MonoState) {
-    const t = state.tiles[state.players[0].pos];
-    if (t.kind === 'prop' && t.owner === null) return 'buy';
+  suggestMove(state: MonoState): 'roll' | 'buy' | 'end' {
+    if (state.dice === null) return 'roll';
+    const me = state.players[state.turn];
+    const t = state.tiles[me.pos];
+    if (shouldBuy(me.cash, t)) return 'buy';
     return 'end';
   },
-  explain(state: MonoState) {
-    if (state.winner !== null) return `${state.players[state.winner].name} 获胜。`;
+  explain(state: MonoState, suggested?: 'roll' | 'buy' | 'end' | null) {
+    if (state.winner !== null) return `${state.players[state.winner].name} 成为最后还有现金的人。`;
     const p = state.players[state.turn];
     const t = state.tiles[p.pos];
-    if (state.dice === null) return `${p.name} 请掷骰。现金 ${p.cash}。`;
-    if (t.kind === 'prop' && t.owner === null) return `可以买下「${t.name}」，价格 ${t.price}，租金 ${t.rent}。钱不够就结束回合。`;
-    return '这格不必购买。结束回合，把骰子交给下一位。';
+    const act = suggested ?? monopolyCoach.suggestMove(state);
+    if (act === 'roll' || state.dice === null) return `${p.name} 请掷骰。手头现金 ${p.cash}。路过起点会再领 200。`;
+    if (t.kind === 'prop' && t.owner === null) {
+      if (act === 'buy') return `建议买下「${t.name}」（${t.price}，租金 ${t.rent}）。请留一点现金应付别人的地租。`;
+      return `「${t.name}」可以买，但现金只剩 ${p.cash}，建议先结束回合，以免付不起租金。`;
+    }
+    if (t.kind === 'prop' && t.owner === state.turn) return '这是您的地。建议结束回合。';
+    return '这一格不用买。建议结束回合，把骰子交给下一位。';
   },
   legalHighlights() { return []; },
 };

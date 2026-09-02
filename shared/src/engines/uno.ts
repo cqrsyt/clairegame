@@ -172,20 +172,58 @@ export function playUno(state: UnoState, player: number, cardId: string, wildCol
   return next;
 }
 
+export type UnoAdvice =
+  | { action: 'draw' }
+  | { action: 'play'; card: UnoCard; wildColor: UnoColor };
+
+export function unoSuggest(state: UnoState, player = state.current): UnoAdvice | null {
+  if (state.winner !== null) return null;
+  const p = state.players[player];
+  const playable = p.hand.filter((c) => canPlayUno(c, state));
+  if (!playable.length) return { action: 'draw' };
+  const nextI = nextIndex(state);
+  const nextHand = state.players[nextI].hand.length;
+  const counts: Record<string, number> = { R: 0, G: 0, B: 0, Y: 0 };
+  for (const c of p.hand) if (c.color !== 'W') counts[c.color]++;
+  const wildColor = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] as UnoColor) || 'R';
+  const score = (c: UnoCard) => {
+    let sc = 0;
+    if (c.value === '+4') sc -= 20;
+    else if (c.value === 'wild') sc -= 12;
+    else if (c.value === '+2' || c.value === 'skip') sc += nextHand <= 2 ? 30 : 6;
+    else if (c.value === 'reverse') sc += nextHand <= 2 ? 18 : 4;
+    if (c.color === wildColor) sc += 8;
+    if (c.color === state.color) sc += 5;
+    const n = parseInt(c.value, 10);
+    if (!Number.isNaN(n)) sc += n * 0.2;
+    if (p.hand.length === 1) sc += 50;
+    return sc;
+  };
+  playable.sort((a, b) => score(b) - score(a));
+  return { action: 'play', card: playable[0], wildColor };
+}
+
 export function unoBotStep(state: UnoState): UnoState {
   if (state.winner !== null) return state;
   const p = state.players[state.current];
   if (!p.isBot) return state;
-  const playable = p.hand.filter((c) => canPlayUno(c, state));
-  if (!playable.length) return drawUno(state, state.current);
-  playable.sort((a, b) => {
-    const aw = a.value === '+4' || a.value === 'wild' ? 1 : 0;
-    const bw = b.value === '+4' || b.value === 'wild' ? 1 : 0;
-    return aw - bw;
-  });
-  const card = playable[0];
-  const counts: Record<string, number> = { R: 0, G: 0, B: 0, Y: 0 };
-  for (const c of p.hand) if (c.color !== 'W') counts[c.color]++;
-  const wildColor = (Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] as UnoColor) || 'R';
-  return playUno(state, state.current, card.id, wildColor);
+  const sug = unoSuggest(state, state.current);
+  if (!sug || sug.action === 'draw') return drawUno(state, state.current);
+  return playUno(state, state.current, sug.card.id, sug.wildColor);
 }
+
+export const unoCoach = {
+  suggestMove(state: UnoState, player = 0) { return unoSuggest(state, player); },
+  explain(state: UnoState, suggested?: UnoAdvice | null) {
+    if (state.winner !== null) return `${state.players[state.winner].name} 已经出完牌。`;
+    if (state.current !== 0) return `${state.players[state.current].name} 正在出牌。当前颜色是${COLOR_ZH[state.color]}。`;
+    const m = suggested === undefined ? unoSuggest(state, 0) : suggested;
+    if (!m || m.action === 'draw') return `当前颜色是${COLOR_ZH[state.color]}。手里没有能配上的牌，建议摸一张。`;
+    const lab = labelUno(m.card);
+    if (m.card.value === 'wild' || m.card.value === '+4') {
+      return `建议出「${lab}」，并把颜色改成${COLOR_ZH[m.wildColor]}。对手剩得少时，功能牌更有用。`;
+    }
+    return `当前颜色是${COLOR_ZH[state.color]}。建议出「${lab}」，对上颜色或数字即可。`;
+  },
+  legalHighlights() { return []; },
+};
