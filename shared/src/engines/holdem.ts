@@ -1,4 +1,4 @@
-/** 简化德州：2 人限注，翻牌后一次下注，摊牌比牌。可增强：多街、边池、多人。 */
+/** 简化德州：2 人限注，翻牌（三张）后再行动一次，然后发完摊牌。 */
 export type HCard = { r: number; s: number; id: string };
 export interface HPlayer { id: string; name: string; isBot: boolean; hole: HCard[]; stack: number; folded: boolean; bet: number; }
 export interface HoldemState {
@@ -6,7 +6,7 @@ export interface HoldemState {
   board: HCard[];
   pot: number;
   toAct: number;
-  phase: 'pre' | 'show' | 'ended';
+  phase: 'pre' | 'flop' | 'show' | 'ended';
   winner: number | null;
   log: string[];
   deck: HCard[];
@@ -30,6 +30,7 @@ function deck(): HCard[] {
 }
 
 function rank7(cards: HCard[]): [number, number[]] {
+  // best 5 of 7: category then kickers. 8=straight flush .. 0=high
   const combos: HCard[][] = [];
   const pick = (start: number, chosen: HCard[]) => {
     if (chosen.length === 5) { combos.push(chosen); return; }
@@ -53,7 +54,7 @@ function eval5(five: HCard[]): [number, number[]] {
   let top = 0;
   if (uniq.length === 5) {
     if (uniq[0] - uniq[4] === 4) { straight = true; top = uniq[0]; }
-    if (uniq[0] === 12 && uniq[1] === 3 && uniq[4] === 0) { straight = true; top = 3; }
+    if (uniq[0] === 12 && uniq[1] === 3 && uniq[4] === 0) { straight = true; top = 3; } // A2345
   }
   const counts = new Map<number, number>();
   for (const r of rs) counts.set(r, (counts.get(r) || 0) + 1);
@@ -89,6 +90,7 @@ export function createHoldem(): HoldemState {
     { id: 'you', name: '你', isBot: false, hole: [d.pop()!, d.pop()!], stack: 100, folded: false, bet: 0 },
     { id: 'bot', name: '对手', isBot: true, hole: [d.pop()!, d.pop()!], stack: 100, folded: false, bet: 0 },
   ];
+  // blinds
   players[0].stack -= 1; players[0].bet = 1;
   players[1].stack -= 2; players[1].bet = 2;
   return {
@@ -105,36 +107,60 @@ export function createHoldem(): HoldemState {
 
 function dealBoard(s: HoldemState) {
   const d = s.deck.slice();
-  const board = [d.pop()!, d.pop()!, d.pop()!, d.pop()!, d.pop()!];
+  const board = s.board.slice();
+  while (board.length < 5 && d.length) board.push(d.pop()!);
   return { ...s, deck: d, board };
 }
 
+function acting(s: HoldemState, i: number) {
+  return (s.phase === 'pre' || s.phase === 'flop') && s.toAct === i && s.winner === null;
+}
+
 export function holdemFold(s: HoldemState, i: number): HoldemState {
-  if (s.phase !== 'pre' || s.toAct !== i) return s;
+  if (!acting(s, i)) return s;
   const players = s.players.map((p, k) => k === i ? { ...p, folded: true } : p);
   const w = 1 - i;
   players[w] = { ...players[w], stack: players[w].stack + s.pot };
   return { ...s, players, phase: 'ended', winner: w, log: [`${players[i].name} 弃牌。${players[w].name} 收下底池。`, ...s.log] };
 }
 
+function goFlop(s: HoldemState, from: number): HoldemState {
+  if (s.board.length >= 3) return showdown(s);
+  const d = s.deck.slice();
+  const board = [d.pop()!, d.pop()!, d.pop()!];
+  return {
+    ...s,
+    deck: d,
+    board,
+    phase: 'flop',
+    toAct: 1 - from,
+    log: [`翻牌 ${board.map(labelH).join(' ')}。`, ...s.log],
+  };
+}
+
 export function holdemCall(s: HoldemState, i: number): HoldemState {
-  if (s.phase !== 'pre' || s.toAct !== i) return s;
+  if (!acting(s, i)) return s;
   const need = Math.max(...s.players.map((p) => p.bet)) - s.players[i].bet;
   const pay = Math.min(need, s.players[i].stack);
   const players = s.players.map((p, k) => k === i ? { ...p, stack: p.stack - pay, bet: p.bet + pay } : p);
   const pot = s.pot + pay;
-  return showdown({ ...s, players, pot, log: [`${players[i].name} 跟注 ${pay}。`, ...s.log] });
+  const next = { ...s, players, pot, log: [`${players[i].name} 跟注 ${pay}。`, ...s.log] };
+  if (next.phase === 'pre' && next.board.length === 0) return goFlop(next, i);
+  return showdown(next);
 }
 
 export function holdemRaise(s: HoldemState, i: number, extra = 10): HoldemState {
-  if (s.phase !== 'pre' || s.toAct !== i) return s;
+  if (!acting(s, i)) return s;
   const maxBet = Math.max(...s.players.map((p) => p.bet));
   const need = maxBet - s.players[i].bet + extra;
   const pay = Math.min(need, s.players[i].stack);
   const players = s.players.map((p, k) => k === i ? { ...p, stack: p.stack - pay, bet: p.bet + pay } : p);
   const pot = s.pot + pay;
   const next = { ...s, players, pot, toAct: 1 - i, log: [`${players[i].name} 加注至 ${players[i].bet}。`, ...s.log] };
-  if (players[i].stack === 0 || players[1 - i].stack === 0) return showdown(next);
+  if (players[i].stack === 0 || players[1 - i].stack === 0) {
+    const withBoard = next.board.length ? next : goFlop(next, i);
+    return showdown(withBoard);
+  }
   return next;
 }
 
@@ -155,28 +181,59 @@ function showdown(s: HoldemState): HoldemState {
   };
 }
 
-export function holdemBot(s: HoldemState): HoldemState {
-  if (s.phase !== 'pre' || !s.players[s.toAct].isBot) return s;
-  const i = s.toAct;
+function holeScore(h: HCard[]) {
+  const [a, b] = h[0].r >= h[1].r ? [h[0], h[1]] : [h[1], h[0]];
+  let sc = a.r + 2;
+  if (a.r === b.r) sc = a.r * 2 + 8; // 对子
+  if (a.s === b.s) sc += 2;
+  if (Math.abs(a.r - b.r) === 1) sc += 1;
+  if (a.r >= 10 && b.r >= 8) sc += 3;
+  return sc;
+}
+
+function botActionFor(s: HoldemState, i: number): 'fold' | 'call' | 'raise' {
   const hole = s.players[i].hole;
-  const strong = hole[0].r >= 10 || hole[1].r >= 10 || hole[0].r === hole[1].r;
-  if (!strong && Math.random() < 0.15) return holdemFold(s, i);
-  if (strong && Math.random() < 0.45) return holdemRaise(s, i, 8);
+  if (s.phase === 'flop' && s.board.length >= 3) {
+    const ev = rank7([...hole, ...s.board]);
+    if (ev[0] >= 3) return 'raise'; // 三条以上
+    if (ev[0] >= 1) return 'call';
+    if (holeScore(hole) >= 16) return 'call';
+    return 'fold';
+  }
+  const sc = holeScore(hole);
+  if (sc >= 22) return 'raise';
+  if (sc >= 12) return 'call';
+  return 'fold';
+}
+
+export function holdemBot(s: HoldemState): HoldemState {
+  if ((s.phase !== 'pre' && s.phase !== 'flop') || !s.players[s.toAct].isBot) return s;
+  const i = s.toAct;
+  const act = botActionFor(s, i);
+  if (act === 'fold') return holdemFold(s, i);
+  if (act === 'raise') return holdemRaise(s, i, 8);
   return holdemCall(s, i);
 }
 
+const ACT_ZH = { fold: '弃牌', call: '跟注', raise: '加注' } as const;
+
 export const holdemCoach = {
   suggestMove(state: HoldemState) {
-    const h = state.players[0].hole;
-    if (h[0].r === h[1].r || h[0].r >= 11) return 'call';
-    return 'call';
+    return botActionFor(state, 0);
   },
-  explain(state: HoldemState) {
+  explain(state: HoldemState, suggested?: 'fold' | 'call' | 'raise' | null) {
     if (state.winner !== null) return state.log[0];
     const h = state.players[0].hole;
-    if (h[0].r === h[1].r) return '口袋对子，底气较足，跟注或小加都可以。';
-    if (h[0].s === h[1].s) return '同花起手，后面可能走同花。先看看翻牌。';
-    return '这是简化局：跟注后直接发五张公共牌摊牌。完整多街下注可增强。';
+    const act = suggested ?? botActionFor(state, 0);
+    const hint = `建议${ACT_ZH[act]}。`;
+    if (state.phase === 'flop') {
+      const ev = rank7([...h, ...state.board]);
+      return `翻牌已出。您现在大约是「${CAT[ev[0]]}」。${hint}`;
+    }
+    if (h[0].r === h[1].r) return `口袋对子，底气较足。${hint}`;
+    if (h[0].s === h[1].s) return `同花起手，后面可能走同花。${hint}`;
+    if (h[0].r >= 10 && h[1].r >= 10) return `两张高牌。${hint}`;
+    return `先看两张底牌再决定。${hint}`;
   },
   legalHighlights() { return []; },
 };
