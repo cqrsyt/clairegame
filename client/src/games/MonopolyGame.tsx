@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createMonopoly, monoRoll, monoBuy, monoEndTurn, monoBot, monopolyCoach, type MonoState } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 
 export default function MonopolyGame() {
   const [state, setState] = useState<MonoState>(() => createMonopoly())
@@ -17,6 +18,9 @@ export default function MonopolyGame() {
   const me = state.players[0]
   const tile = state.tiles[me.pos]
   const canBuy = state.turn === 0 && state.dice !== null && tile.kind === 'prop' && tile.owner === null && me.cash >= tile.price
+  const myTurn = state.winner === null && state.turn === 0
+  const act = useMemo(() => (myTurn ? monopolyCoach.suggestMove(state) : null), [state, myTurn])
+  const actZh = { roll: '掷骰', buy: '购买此地', end: '结束回合' } as const
 
   return (
     <div className="board-wrap play-layout" style={{ marginTop: '1rem' }}>
@@ -49,7 +53,16 @@ export default function MonopolyGame() {
       </div>
       <div className="holo-panel side-panel coach-panel">
         <h2>旁白</h2>
-        <div className="coach">{monopolyCoach.explain(state)}</div>
+        <LiveGuide
+          title="助手"
+          lines={[monopolyCoach.explain(state, act)]}
+          suggestion={act ? `建议：${actZh[act]}` : null}
+          onApply={act && myTurn ? () => {
+            if (act === 'roll') { playSfx('move'); setState(monoRoll(state)) }
+            else if (act === 'buy') setState(monoBuy(state))
+            else setState(monoEndTurn(state))
+          } : null}
+        />
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
         <div className="note-enhance">可增强：房屋旅馆、完整机会卡、拍卖与更多玩家。</div>
       </div>

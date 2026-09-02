@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { createUno, playUno, drawUno, canPlayUno, unoBotStep, labelUno, type UnoState, type UnoColor } from '@aether/shared'
+import { useEffect, useMemo, useState } from 'react'
+import { createUno, playUno, drawUno, canPlayUno, unoBotStep, labelUno, unoCoach, type UnoState, type UnoColor } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
@@ -11,6 +11,8 @@ export default function UnoGame() {
   const [state, setState] = useState<UnoState>(() => createUno())
   const [wildFor, setWildFor] = useState<string | null>(null)
   const me = 0
+  const myTurn = state.winner === null && state.current === me
+  const advice = useMemo(() => (myTurn ? unoCoach.suggestMove(state, me) : null), [state, myTurn])
 
   useEffect(() => {
     if (state.winner !== null) return
@@ -64,7 +66,24 @@ export default function UnoGame() {
         {state.winner !== null && <div className="coach">{state.players[state.winner].name} 获胜</div>}
       </div>
       <div className="holo-panel side-panel">
-        <LiveGuide title="这一步" lines={[state.current===0 ? "对上颜色或数字就能出。没有牌就摸一张。" : "对手正在出牌。", state.winner!==null ? "有人出完了。" : "当前颜色："+state.color]} />
+        <LiveGuide
+          title="助手"
+          lines={[unoCoach.explain(state, advice)]}
+          suggestion={
+            !advice ? null
+            : advice.action === 'draw' ? '建议：摸一张'
+            : `建议：出「${labelUno(advice.card)}」`
+          }
+          onApply={advice && myTurn ? () => {
+            if (advice.action === 'draw') { playSfx('move'); setState(drawUno(state, me)) }
+            else if (advice.card.value === 'wild' || advice.card.value === '+4') {
+              setWildFor(advice.card.id)
+            } else {
+              playSfx('move')
+              setState(playUno(state, me, advice.card.id, advice.wildColor))
+            }
+          } : null}
+        />
         <h2>记录</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
       </div>

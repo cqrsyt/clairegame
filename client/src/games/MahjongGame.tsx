@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createMahjong, discardTile, passReact, claimPong, claimChi, claimHu, selfHu, canPong, canChi, canHu, mahjongBotStep,
+  mahjongCoach, mahjongTileName,
   type MahjongState,
 } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
@@ -24,28 +25,15 @@ export default function MahjongGame() {
 
   const chiOpts = state.lastDiscard ? canChi(me.hand, state.lastDiscard.tile) : []
   const last = state.lastDiscard
-  const lastNm = last ? tileName(last.tile) : ''
-  const fromName = last ? state.players[last.from].name : ''
-  const guide: string[] = []
-  if (state.phase === 'ended' && state.winner !== null) {
-    guide.push(state.winner === 0 ? '这一圈你胡了。可以再开一局练手。' : `${state.players[state.winner].name} 先胡。看看副露，下一圈再追。`)
-  } else if (state.phase === 'react' && last) {
-    guide.push(`${fromName} 打出了「${lastNm}」。`)
-    if (canHu([...me.hand, last.tile], me.melds.length)) guide.push('胡：这张牌正好让你组成四面子加一对将，可以点炮和牌。')
-    if (canPong(me.hand, last.tile)) guide.push('碰：你手里已有两张相同的牌，碰下成刻子，轮到你打牌。')
-    if (chiOpts.length) guide.push('吃：只可吃上家的牌，用手里两张连成顺子（如 2、3 吃 4）。')
-    if (!canHu([...me.hand, last.tile], me.melds.length) && !canPong(me.hand, last.tile) && !chiOpts.length) {
-      guide.push('这张与你无关，点「过」即可。')
-    }
-  } else if (state.phase === 'discard' && state.turn === meIdx) {
-    if (canHu(me.hand, me.melds.length)) guide.push('自摸：手牌已经能和。点「自摸胡」结束这一圈。')
-    else guide.push('轮到你打牌。点一张不需要的牌打出。尽量留能成顺、成刻的牌。')
-    const honors = me.hand.filter((t) => ['E', 'S', 'W', 'N', 'R', 'G', 'Wht'].includes(t))
-    if (honors.length && honors.length <= 2) guide.push(`字牌如「${tileName(honors[0])}」单张很难组成面子，可优先打出。`)
-  } else {
-    const p = state.players[state.turn]
-    guide.push(`${p.name} 正在思考。电脑每步会停一下，方便你看清牌面。`)
-  }
+  const myAct = (state.phase === 'discard' && state.turn === meIdx) || state.phase === 'react'
+  const advice = useMemo(() => (state.phase !== 'ended' && myAct ? mahjongCoach.suggestMove(state, meIdx) : null), [state, myAct])
+  const suggestLabel = !advice || advice.action === 'wait' ? null
+    : advice.action === 'selfHu' ? '建议：自摸胡'
+    : advice.action === 'hu' ? '建议：胡'
+    : advice.action === 'pong' ? '建议：碰'
+    : advice.action === 'chi' ? `建议：吃（${advice.need.map(mahjongTileName).join('、')}）`
+    : advice.action === 'pass' ? '建议：过'
+    : `建议：打出「${mahjongTileName(advice.tile)}」`
 
   return (
     <div className="board-wrap play-layout" style={{ marginTop: '1rem' }}>
@@ -100,7 +88,19 @@ export default function MahjongGame() {
         )}
       </div>
       <div className="holo-panel side-panel coach-panel">
-        <LiveGuide title="这一步" lines={guide} />
+        <LiveGuide
+          title="助手"
+          lines={[mahjongCoach.explain(state, advice)]}
+          suggestion={suggestLabel}
+          onApply={advice && myAct ? () => {
+            if (advice.action === 'selfHu') { playSfx('win'); setState(selfHu(state, meIdx)) }
+            else if (advice.action === 'hu') setState(claimHu(state, meIdx))
+            else if (advice.action === 'pong') setState(claimPong(state, meIdx))
+            else if (advice.action === 'chi') setState(claimChi(state, meIdx, advice.need))
+            else if (advice.action === 'pass') setState(passReact(state))
+            else if (advice.action === 'discard') { playSfx('move'); setState(discardTile(state, meIdx, advice.tile)) }
+          } : null}
+        />
         <h2>牌河</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
         <button className="btn magenta" style={{ marginTop: 12 }} onClick={() => setState(createMahjong([{ id: 'you', name: '你', isBot: false }]))}>再来一局</button>

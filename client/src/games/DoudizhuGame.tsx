@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { createDoudizhu, playDoudizhu, passDoudizhu, doudizhuBot, type DDState } from '@aether/shared'
+import { useEffect, useMemo, useState } from 'react'
+import { createDoudizhu, playDoudizhu, passDoudizhu, doudizhuBot, doudizhuCoach, type DDState } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
@@ -9,6 +9,8 @@ export default function DoudizhuGame() {
   const [state, setState] = useState<DDState>(() => createDoudizhu())
   const [sel, setSel] = useState<string[]>([])
   const me = 0
+  const myTurn = state.winner === null && state.current === me
+  const advice = useMemo(() => (myTurn ? doudizhuCoach.suggestMove(state, me) : null), [state, myTurn])
 
   useEffect(() => {
     if (state.winner !== null) return
@@ -57,7 +59,23 @@ export default function DoudizhuGame() {
         {state.winner !== null && <div className="coach">{state.players[state.winner].name} 获胜</div>}
       </div>
       <div className="holo-panel side-panel">
-        <LiveGuide title="这一步" lines={[state.current===0 ? "选出要出的牌。要比上家大，或者点不要。" : state.players[state.current].name+" 正在出牌。", "你是地主（金色）。农民是绿色。"]} />
+        <LiveGuide
+          title="助手"
+          lines={[doudizhuCoach.explain(state, advice)]}
+          suggestion={
+            !advice ? null
+            : advice.action === 'pass' ? '建议：不要'
+            : `建议：出 ${advice.combo.cards.map((c) => c.label).join(' ')}`
+          }
+          onApply={advice && myTurn ? () => {
+            if (advice.action === 'pass') { setState(passDoudizhu(state, me)); setSel([]) }
+            else {
+              playSfx('move')
+              setState(playDoudizhu(state, me, advice.combo.cards.map((c) => c.id)))
+              setSel([])
+            }
+          } : null}
+        />
         <h2>记录</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
       </div>

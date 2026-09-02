@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createHoldem, holdemCall, holdemFold, holdemRaise, holdemBot, holdemCoach, labelH, isRedH, type HoldemState } from '@aether/shared'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 import { botThinkMs } from '../lib/botDelay'
+import LiveGuide from '../components/LiveGuide'
 
 function Cards({ cards, hide }: { cards: { r: number; s: number; id: string }[]; hide?: boolean }) {
   return (
@@ -25,6 +26,9 @@ export default function HoldemGame() {
   }, [state])
 
   const ended = state.winner !== null
+  const myTurn = !ended && (state.phase === 'pre' || state.phase === 'flop') && state.toAct === 0
+  const act = useMemo(() => (myTurn ? holdemCoach.suggestMove(state) : null), [state, myTurn])
+  const actZh = { fold: '弃牌', call: '跟注', raise: '加注' } as const
   return (
     <div className="board-wrap play-layout" style={{ marginTop: '1rem' }}>
       <div className="holo-panel" style={{ padding: '1rem', flex: 2, minWidth: 280 }}>
@@ -47,7 +51,17 @@ export default function HoldemGame() {
       </div>
       <div className="holo-panel side-panel coach-panel">
         <h2>旁白</h2>
-        <div className="coach">{holdemCoach.explain(state)}</div>
+        <LiveGuide
+          title="助手"
+          lines={[holdemCoach.explain(state, act)]}
+          suggestion={act ? `建议：${actZh[act]}` : null}
+          onApply={act && myTurn ? () => {
+            playSfx('move')
+            if (act === 'fold') setState(holdemFold(state, 0))
+            else if (act === 'raise') setState(holdemRaise(state, 0))
+            else setState(holdemCall(state, 0))
+          } : null}
+        />
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
         <div className="note-enhance">跟注后会先看到三张翻牌，再行动一次，然后发完摊牌。</div>
       </div>
