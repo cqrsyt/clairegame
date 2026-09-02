@@ -15,6 +15,7 @@ import GoGame from '../games/GoGame'
 import JunqiGame from '../games/JunqiGame'
 import HoldemGame from '../games/HoldemGame'
 import MonopolyGame from '../games/MonopolyGame'
+import GameMotif from '../components/GameMotif'
 
 const map: Record<string, ComponentType> = {
   chess: ChessGame,
@@ -51,9 +52,10 @@ export default function PlayPage() {
   }
   return (
     <div className="page play-page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
+      <div className="play-header">
+        <GameMotif id={g.id} compact />
         <h1 style={{ marginBottom: 0 }}>{g.nameZh}</h1>
-        <Link to={`/game/${g.id}`} style={{ color: 'var(--muted)' }}>规则说明</Link>
+        <Link to={`/game/${g.id}`} style={{ color: 'var(--muted)', marginLeft: 'auto' }}>规则说明</Link>
       </div>
       <Comp />
     </div>
