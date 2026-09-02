@@ -1,41 +1,130 @@
+import { useId } from 'react'
+
 type Props = { tile: string; disabled?: boolean; selected?: boolean; onClick?: () => void; small?: boolean }
 
 const WAN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九']
 
-function Dots({ n }: { n: number }) {
-  const pal = ['#1d4ed8', '#16a34a', '#dc2626']
-  const color = (i: number) => pal[i % 3]
-  if (n === 1) {
+/** Brush-stroke numerals so 万 tiles stay readable even if CJK fonts fail to load. */
+function WanNumeral({ n }: { n: number }) {
+  const s = { fill: 'none' as const, stroke: '#8f1212', strokeWidth: 2.35, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (n === 1) return <path {...s} d="M6 16 H34" />
+  if (n === 2) return <g><path {...s} d="M8 11 H32" /><path {...s} d="M7 22 H33" /></g>
+  if (n === 3) return <g><path {...s} d="M8 9 H32" /><path {...s} d="M7 16 H33" /><path {...s} d="M6 23 H34" /></g>
+  if (n === 4) {
     return (
       <g>
-        <circle cx="20" cy="28" r="11" fill="#1e3a8a" />
-        <circle cx="20" cy="28" r="8" fill="#f8f1dc" />
-        <circle cx="20" cy="28" r="5.5" fill="#dc2626" />
-        <circle cx="20" cy="28" r="2.2" fill="#f8f1dc" />
-        <path d="M20 20 l1.4 3.2 3.5.2-2.7 2.2.9 3.4L20 27.2 17 28.8l.9-3.4-2.7-2.2 3.5-.2z" fill="#eab308" />
+        <path {...s} d="M10 7 V22 H30 V7" />
+        <path {...s} d="M10 14 H30" />
+        <path {...s} d="M20 7 V14" />
+        <path {...s} d="M13 22 L10 27" />
+        <path {...s} d="M27 22 L30 27" />
       </g>
     )
   }
-  const layouts: Record<number, [number, number][]> = {
-    2: [[20, 16], [20, 40]],
-    3: [[20, 14], [20, 28], [20, 42]],
-    4: [[12, 16], [28, 16], [12, 40], [28, 40]],
-    5: [[12, 15], [28, 15], [20, 28], [12, 41], [28, 41]],
-    6: [[12, 14], [28, 14], [12, 28], [28, 28], [12, 42], [28, 42]],
-    7: [[12, 13], [28, 13], [20, 22], [12, 32], [28, 32], [12, 44], [28, 44]],
-    8: [[12, 12], [28, 12], [12, 23], [28, 23], [12, 34], [28, 34], [12, 45], [28, 45]],
-    9: [[11, 12], [20, 12], [29, 12], [11, 28], [20, 28], [29, 28], [11, 44], [20, 44], [29, 44]],
+  if (n === 5) {
+    return (
+      <g>
+        <path {...s} d="M8 8 H32" />
+        <path {...s} d="M14 8 V15 H28" />
+        <path {...s} d="M12 15 Q20 12 28 15" />
+        <path {...s} d="M7 22 H33" />
+      </g>
+    )
   }
-  const pts = layouts[n] || []
-  const r = n >= 8 ? 3.3 : n >= 6 ? 3.7 : 4.4
+  if (n === 6) {
+    return (
+      <g>
+        <path {...s} d="M20 6 V12" />
+        <path {...s} d="M10 12 H30" />
+        <path {...s} d="M16 12 L10 26" />
+        <path {...s} d="M24 12 L30 26" />
+      </g>
+    )
+  }
+  if (n === 7) return <g><path {...s} d="M8 9 H32" /><path {...s} d="M26 9 L16 27" /></g>
+  if (n === 8) return <g><path {...s} d="M14 8 L8 26" /><path {...s} d="M26 8 L32 26" /></g>
   return (
     <g>
-      {pts.map(([x, y], i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r={r} fill={color(i)} />
-          <circle cx={x - 1} cy={y - 1.2} r={r * 0.32} fill="#fff" opacity="0.55" />
-        </g>
-      ))}
+      <path {...s} d="M16 7 Q12 16 10 26" />
+      <path {...s} d="M16 7 H26 Q30 10 26 15 H18" />
+      <path {...s} d="M24 15 Q32 18 28 27" />
+    </g>
+  )
+}
+
+/** Traditional 萬 as strokes (no font tofu). */
+function WanGlyph() {
+  const s = { fill: 'none' as const, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  const d = "M8 32 H32 M14 30 V36 M26 30 V36 M10 36 H30 M10 36 V48 H30 V36 M20 36 V48 M10 42 H30 M14 48 L11 53 M26 48 L29 53"
+  return (
+    <g>
+      <path {...s} d={d} stroke="#3a0a08" strokeWidth="3.2" />
+      <path {...s} d={d} stroke="#c41e3a" strokeWidth="1.85" />
+    </g>
+  )
+}
+
+function Coin({ x, y, r, hue }: { x: number; y: number; r: number; hue: 'red' | 'blue' | 'green' }) {
+  const ring = hue === 'red' ? '#b91c1c' : hue === 'green' ? '#15803d' : '#1d4ed8'
+  const inner = hue === 'red' ? '#7f1d1d' : hue === 'green' ? '#14532d' : '#1e3a8a'
+  const mid = hue === 'red' ? '#ef4444' : hue === 'green' ? '#22c55e' : '#3b82f6'
+  return (
+    <g>
+      <circle cx={x} cy={y} r={r} fill={inner} />
+      <circle cx={x} cy={y} r={r * 0.78} fill="#fff8e8" />
+      <circle cx={x} cy={y} r={r * 0.58} fill={ring} />
+      <circle cx={x} cy={y} r={r * 0.38} fill="#fff8e8" />
+      <circle cx={x} cy={y} r={r * 0.22} fill={mid} />
+      <circle cx={x - r * 0.22} cy={y - r * 0.28} r={r * 0.14} fill="#fff" opacity="0.55" />
+    </g>
+  )
+}
+
+function Dots({ n }: { n: number }) {
+  if (n === 1) {
+    return (
+      <g>
+        {/* 一筒 · bird over a large coin (classic Chinese 筒) */}
+        <Coin x={20} y={34} r={11} hue="red" />
+        <ellipse cx="20" cy="16" rx="9" ry="7" fill="#1d4ed8" />
+        <ellipse cx="20" cy="15" rx="6.5" ry="5" fill="#60a5fa" />
+        <circle cx="17.2" cy="14.2" r="1.15" fill="#111" />
+        <circle cx="22.6" cy="14.2" r="1.15" fill="#111" />
+        <path d="M14 12 Q20 6 26 12" fill="none" stroke="#1e3a8a" strokeWidth="1.3" />
+        <path d="M28 18 Q34 10 31 7" fill="none" stroke="#b45309" strokeWidth="1.4" strokeLinecap="round" />
+        <path d="M16 20 Q20 24 24 20" fill="none" stroke="#1e3a8a" strokeWidth="1.1" />
+      </g>
+    )
+  }
+  const layouts: Record<number, [number, number, 'red' | 'blue' | 'green'][]> = {
+    2: [[20, 16, 'green'], [20, 40, 'red']],
+    3: [[20, 13, 'green'], [20, 28, 'blue'], [20, 43, 'red']],
+    4: [[12, 16, 'blue'], [28, 16, 'blue'], [12, 40, 'red'], [28, 40, 'red']],
+    5: [[12, 14, 'blue'], [28, 14, 'blue'], [20, 28, 'green'], [12, 42, 'red'], [28, 42, 'red']],
+    6: [[12, 13, 'green'], [28, 13, 'green'], [12, 28, 'blue'], [28, 28, 'blue'], [12, 43, 'red'], [28, 43, 'red']],
+    7: [[12, 12, 'green'], [28, 12, 'green'], [20, 22, 'green'], [12, 33, 'blue'], [28, 33, 'blue'], [12, 45, 'red'], [28, 45, 'red']],
+    8: [[12, 11, 'green'], [28, 11, 'green'], [12, 23, 'green'], [28, 23, 'green'], [12, 35, 'red'], [28, 35, 'red'], [12, 47, 'red'], [28, 47, 'red']],
+    9: [[11, 12, 'green'], [20, 12, 'green'], [29, 12, 'green'], [11, 28, 'blue'], [20, 28, 'blue'], [29, 28, 'blue'], [11, 44, 'red'], [20, 44, 'red'], [29, 44, 'red']],
+  }
+  const pts = layouts[n] || []
+  const r = n >= 8 ? 4.05 : n >= 6 ? 4.45 : n === 5 ? 4.7 : 5.15
+  return (
+    <g>
+      {pts.map(([x, y, hue], i) => <Coin key={i} x={x} y={y} r={r} hue={hue} />)}
+    </g>
+  )
+}
+
+function Stick({ x, y, h, lean = 0 }: { x: number; y: number; h: number; lean?: number }) {
+  const x2 = x + lean
+  return (
+    <g>
+      <line x1={x} y1={y} x2={x2} y2={y + h} stroke="#052e16" strokeWidth="5.2" strokeLinecap="round" />
+      <line x1={x} y1={y} x2={x2} y2={y + h} stroke="#166534" strokeWidth="4.1" strokeLinecap="round" />
+      <line x1={x} y1={y} x2={x2} y2={y + h} stroke="#4ade80" strokeWidth="2.1" strokeLinecap="round" />
+      <line x1={x - 1.7} y1={y + h * 0.32} x2={x2 + 1.7} y2={y + h * 0.32} stroke="#052e16" strokeWidth="1.15" />
+      <line x1={x - 1.7} y1={y + h * 0.64} x2={x2 + 1.7} y2={y + h * 0.64} stroke="#052e16" strokeWidth="1.15" />
+      <path d={`M${x - 0.4} ${y + 2} Q${x - 5} ${y + 4} ${x - 6} ${y + 8}`} fill="none" stroke="#15803d" strokeWidth="1.05" />
     </g>
   )
 }
@@ -44,36 +133,53 @@ function Bamboo({ n }: { n: number }) {
   if (n === 1) {
     return (
       <g>
-        <ellipse cx="20" cy="30" rx="11" ry="8" fill="#166534" />
-        <ellipse cx="20" cy="22" rx="7" ry="6" fill="#22c55e" />
-        <circle cx="17" cy="21" r="1.3" fill="#111" />
-        <circle cx="23" cy="21" r="1.3" fill="#111" />
-        <path d="M14 18 Q20 10 26 18" fill="none" stroke="#14532d" strokeWidth="1.4" />
-        <path d="M16 34 Q20 38 24 34" fill="none" stroke="#14532d" strokeWidth="1.2" />
-        <path d="M28 26 Q34 18 32 12" fill="none" stroke="#854d0e" strokeWidth="1.4" />
+        {/* 一条 · bird (classic) */}
+        <ellipse cx="20" cy="32" rx="11" ry="9" fill="#14532d" />
+        <ellipse cx="20" cy="22" rx="8" ry="7.2" fill="#22c55e" />
+        <ellipse cx="20" cy="21" rx="5.5" ry="5" fill="#86efac" />
+        <circle cx="16.8" cy="20.5" r="1.35" fill="#111" />
+        <circle cx="23.4" cy="20.5" r="1.35" fill="#111" />
+        <circle cx="17" cy="20.2" r="0.4" fill="#fff" />
+        <path d="M13 16 Q20 8 27 16" fill="none" stroke="#14532d" strokeWidth="1.6" />
+        <path d="M15 38 Q20 44 25 38" fill="none" stroke="#14532d" strokeWidth="1.3" />
+        <path d="M29 26 Q36 16 33 8" fill="none" stroke="#92400e" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M31 14 l4 -1" stroke="#92400e" strokeWidth="1.1" />
       </g>
     )
   }
-  const sticks: [number, number][] =
-    n === 2 ? [[14, 12], [26, 12]]
-    : n === 3 ? [[12, 12], [20, 12], [28, 12]]
-    : n === 4 ? [[14, 8], [26, 8], [14, 30], [26, 30]]
-    : n === 5 ? [[14, 8], [26, 8], [20, 20], [14, 32], [26, 32]]
-    : n === 6 ? [[12, 8], [20, 8], [28, 8], [12, 30], [20, 30], [28, 30]]
-    : n === 7 ? [[12, 6], [20, 6], [28, 6], [20, 22], [12, 34], [20, 34], [28, 34]]
-    : n === 8 ? [[12, 6], [20, 6], [28, 6], [12, 22], [28, 22], [12, 34], [20, 34], [28, 34]]
-    : [[12, 6], [20, 6], [28, 6], [12, 22], [20, 22], [28, 22], [12, 36], [20, 36], [28, 36]]
-  const h = n >= 7 ? 14 : 18
+  const sticks: [number, number, number?][] =
+    n === 2 ? [[14, 10], [26, 10]]
+    : n === 3 ? [[12, 10], [20, 10], [28, 10]]
+    : n === 4 ? [[14, 6], [26, 6], [14, 30], [26, 30]]
+    : n === 5 ? [[14, 6], [26, 6], [20, 19], [14, 32], [26, 32]]
+    : n === 6 ? [[12, 6], [20, 6], [28, 6], [12, 30], [20, 30], [28, 30]]
+    : n === 7 ? [[12, 5], [20, 5], [28, 5], [20, 21], [12, 35], [20, 35], [28, 35]]
+    : n === 8 ? [[12, 5], [20, 5], [28, 5], [12, 21], [28, 21], [12, 36], [20, 36], [28, 36]]
+    : [[12, 4], [20, 4], [28, 4], [12, 21], [20, 21], [28, 21], [12, 38], [20, 38], [28, 38]]
+  const h = n >= 8 ? 13 : n >= 7 ? 14 : n >= 4 ? 18 : 34
   return (
     <g>
-      {sticks.map(([x, y], i) => (
-        <g key={i}>
-          <rect x={x - 3} y={y} width="6" height={h} rx="2" fill={i % 2 ? '#166534' : '#22c55e'} />
-          <line x1={x - 3} y1={y + h * 0.33} x2={x + 3} y2={y + h * 0.33} stroke="#052e16" strokeWidth="1" />
-          <line x1={x - 3} y1={y + h * 0.66} x2={x + 3} y2={y + h * 0.66} stroke="#052e16" strokeWidth="1" />
-        </g>
-      ))}
+      {sticks.map(([x, y], i) => <Stick key={i} x={x} y={y} h={h} />)}
     </g>
+  )
+}
+
+function Honor({ glyph, color }: { glyph: string; color: string }) {
+  return (
+    <text
+      x="20"
+      y="36"
+      textAnchor="middle"
+      fontFamily="Noto Sans SC, ZCOOL KuaiLe, serif"
+      fontSize="24"
+      fontWeight="700"
+      fill={color}
+      stroke="#1a1008"
+      strokeWidth="0.7"
+      paintOrder="stroke"
+    >
+      {glyph}
+    </text>
   )
 }
 
@@ -82,42 +188,48 @@ function Face({ tile }: { tile: string }) {
     const n = Number(tile[0])
     return (
       <g>
-        <text x="20" y="22" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="16" fontWeight="700" fill="#b91c1c">{WAN[n]}</text>
-        <text x="20" y="44" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="16" fontWeight="700" fill="#7f1d1d">萬</text>
+        <WanNumeral n={n} />
+        <WanGlyph />
       </g>
     )
   }
   if (/^[1-9]p$/.test(tile)) return <Dots n={Number(tile[0])} />
   if (/^[1-9]s$/.test(tile)) return <Bamboo n={Number(tile[0])} />
-  if (tile === 'E') return <text x="20" y="36" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="22" fill="#1e3a8a" fontWeight="700">東</text>
-  if (tile === 'S') return <text x="20" y="36" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="22" fill="#1e3a8a" fontWeight="700">南</text>
-  if (tile === 'W') return <text x="20" y="36" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="22" fill="#1e3a8a" fontWeight="700">西</text>
-  if (tile === 'N') return <text x="20" y="36" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="22" fill="#1e3a8a" fontWeight="700">北</text>
-  if (tile === 'R') return <text x="20" y="36" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="22" fill="#dc2626" fontWeight="700">中</text>
-  if (tile === 'G') return <text x="20" y="36" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="20" fill="#15803d" fontWeight="700">發</text>
+  if (tile === 'E') return <Honor glyph="東" color="#1e3a8a" />
+  if (tile === 'S') return <Honor glyph="南" color="#1e3a8a" />
+  if (tile === 'W') return <Honor glyph="西" color="#1e3a8a" />
+  if (tile === 'N') return <Honor glyph="北" color="#1e3a8a" />
+  if (tile === 'R') return <Honor glyph="中" color="#dc2626" />
+  if (tile === 'G') return <Honor glyph="發" color="#15803d" />
   if (tile === 'Wht') {
     return (
       <g>
-        <rect x="8" y="12" width="24" height="32" rx="2" fill="none" stroke="#2563eb" strokeWidth="2.4" />
-        <text x="20" y="36" textAnchor="middle" fontFamily="Noto Serif SC, serif" fontSize="14" fill="#1e40af">白</text>
+        <rect x="7" y="11" width="26" height="34" rx="2" fill="none" stroke="#1d4ed8" strokeWidth="2.8" />
+        <Honor glyph="白" color="#1e40af" />
       </g>
     )
   }
-  return <text x="20" y="32" textAnchor="middle" fontSize="10">{tile}</text>
+  return (
+    <text x="20" y="32" textAnchor="middle" fontSize="11" fill="#3a2208" fontWeight="700">{tile}</text>
+  )
 }
 
 export default function MahjongTile({ tile, disabled, selected, onClick, small }: Props) {
+  const uid = useId().replace(/:/g, '')
+  const gid = `mj-face-${uid}`
   const inner = (
     <svg viewBox="0 0 40 56" width={small ? 28 : 44} height={small ? 40 : 62} aria-label={tile}>
       <defs>
-        <linearGradient id="mjg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#fffdf6" />
-          <stop offset="1" stopColor="#e8d9b0" />
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#fffaf0" />
+          <stop offset="0.55" stopColor="#f3e3c4" />
+          <stop offset="1" stopColor="#e4c98e" />
         </linearGradient>
       </defs>
-      <rect x="1" y="1" width="38" height="54" rx="5" fill="#6b4f2a" />
-      <rect x="2.4" y="2.4" width="35.2" height="51.2" rx="4" fill="#f4ead0" />
-      <rect x="3.2" y="3.2" width="33.6" height="49.6" rx="3.2" fill="none" stroke="#c4b089" strokeWidth="0.6" />
+      <rect x="0.6" y="0.6" width="38.8" height="54.8" rx="5" fill="#4a2c18" />
+      <rect x="1.8" y="1.8" width="36.4" height="52.4" rx="4.2" fill={`url(#${gid})`} />
+      <rect x="3.2" y="3.2" width="33.6" height="49.6" rx="3.2" fill="none" stroke="#8b5a2b" strokeWidth="0.85" />
+      <rect x="4.2" y="4.2" width="31.6" height="47.6" rx="2.4" fill="none" stroke="#fff8e8" strokeWidth="0.45" opacity="0.7" />
       <Face tile={tile} />
     </svg>
   )

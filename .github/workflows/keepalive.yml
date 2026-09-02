@@ -1,0 +1,30 @@
+# Ping Render every 10 minutes so the free instance does not spin down.
+# Cron is UTC. Cold starts can take ~60s; 90s timeout still counts as success.
+name: Render keep-alive (health ping)
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping-health:
+    name: Curl /api/health (never fail the run)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Ping aether-table.com and Render
+        run: |
+          set +e
+          ping_one() {
+            local url="$1"
+            echo "GET $url"
+            curl -sS -L --max-time 90 --connect-timeout 30 -o /tmp/health.body -w "status=%{http_code} time=%{time_total}s\n" "$url"
+            echo
+          }
+          ping_one "https://aether-table.com/api/health"
+          ping_one "https://clairegame.onrender.com/api/health"
+          exit 0
