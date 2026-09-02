@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { getSocket } from '../lib/socket'
+import { getSocket, wakeHost, HOST_WAKE_HINT } from '../lib/socket'
 import { GAMES } from '@aether/shared'
 import OnlineTable from '../games/OnlineTable'
 import { getNickname, setNickname, getStars, toggleStarNick, toggleStarRoom } from '../lib/account'
@@ -28,16 +28,21 @@ export default function Lobby() {
     const onRoom = (r: any) => setRoom(r)
     const onState = (st: any) => setState(st)
     const onErr = (e: string) => setError(e)
+    const onConnect = () => { setConnected(true); setError('') }
+    const onFail = () => { setConnected(false); setError(HOST_WAKE_HINT) }
     s.on('room_update', onRoom)
     s.on('game_state', onState)
     s.on('error_msg', onErr)
-    s.on('connect', () => setConnected(true))
-    s.on('connect_error', () => { setConnected(false); setError('连不上房间。免费服务器可能在唤醒，稍等片刻；先跟电脑下也完全可以。') })
+    s.on('connect', onConnect)
+    s.on('connect_error', onFail)
     if (s.connected) setConnected(true)
+    else void wakeHost((msg) => setError(msg))
     return () => {
       s.off('room_update', onRoom)
       s.off('game_state', onState)
       s.off('error_msg', onErr)
+      s.off('connect', onConnect)
+      s.off('connect_error', onFail)
     }
   }, [])
 
