@@ -1,0 +1,118 @@
+:root {
+  --void: #3a2438;
+  --void-2: #5a3850;
+  --panel: rgba(92, 52, 48, 0.78);
+  --panel-border: rgba(255, 196, 120, 0.7);
+  --gold: #ffc85a;
+  --ivory: #fff4e4;
+  --peach: #ffb08a;
+}
+body {
+  background:
+    radial-gradient(1100px 560px at 8% -8%, rgba(255, 176, 138, 0.42), transparent 56%),
+    radial-gradient(900px 520px at 92% 8%, rgba(255, 200, 90, 0.34), transparent 52%),
+    radial-gradient(760px 540px at 48% 108%, rgba(255, 74, 232, 0.28), transparent 48%),
+    radial-gradient(420px 280px at 78% 42%, rgba(90, 255, 255, 0.10), transparent 62%),
+    linear-gradient(180deg, var(--void), var(--void-2));
+  background-attachment: fixed;
+}
+.topnav { background: rgba(70, 36, 42, 0.82); }
+.holo-panel {
+  box-shadow: inset 0 0 40px rgba(255, 200, 90, 0.12), var(--glow-gold);
+}
+.game-card-art {
+  min-height: 110px;
+  height: 110px;
+  background:
+    radial-gradient(circle at 18% 30%, rgba(255, 176, 138, 0.50), transparent 55%),
+    radial-gradient(circle at 82% 70%, rgba(255, 200, 90, 0.32), transparent 50%),
+    linear-gradient(135deg, #5a3850, #3a2438);
+}
+.play-motif { background: linear-gradient(135deg, #5a3850, #3a2438); }
+
+.hero-ornament {
+  display: grid; place-items: center;
+  margin: 0 auto 1.25rem;
+  max-width: 640px;
+  height: 118px;
+  pointer-events: none;
+}
+.hero-ornament svg { width: 100%; height: 100%; }
+.motif-preview-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.85rem;
+  margin: 1.75rem auto 0;
+  max-width: 920px;
+}
+.motif-preview-row .game-card-art {
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--glow-gold);
+}
+@media (max-width: 700px) {
+  .motif-preview-row { grid-template-columns: repeat(2, 1fr); }
+}
+
+.phase-scene { width: 100%; }
+.phase-banner {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--glow-gold);
+  min-height: 132px;
+  margin-bottom: 1rem;
+}
+.phase-banner svg { display: block; width: 100%; height: 132px; }
+.phase-banner .phase-title {
+  position: absolute; left: 1rem; right: 1rem; bottom: 0.7rem;
+  font-family: var(--font-accent);
+  font-size: clamp(1.35rem, 4vw, 1.9rem);
+  color: var(--ivory);
+  text-shadow: 0 0 18px rgba(255, 200, 90, 0.7), 0 2px 0 #3a1418;
+  letter-spacing: 0.06em;
+}
+.portrait-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+.portrait-card {
+  appearance: none;
+  background: linear-gradient(180deg, rgba(92, 52, 48, 0.9), rgba(58, 36, 56, 0.92));
+  border: 1px solid rgba(255, 196, 120, 0.65);
+  border-radius: 14px;
+  padding: 0.45rem 0.45rem 0.65rem;
+  color: var(--ivory);
+  cursor: pointer;
+  text-align: center;
+  min-height: 164px;
+  box-shadow: inset 0 0 18px rgba(255, 200, 90, 0.08), 0 0 0 1px rgba(255,255,255,0.04);
+  transition: 0.18s ease;
+  font-family: var(--font-cn);
+}
+.portrait-card:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: var(--glow-gold);
+  border-color: var(--gold);
+}
+.portrait-card.selected {
+  border-color: var(--gold);
+  box-shadow: var(--glow-gold), inset 0 0 20px rgba(255, 200, 90, 0.2);
+  outline: 2px solid var(--peach);
+}
+.portrait-card.dead { opacity: 0.42; filter: grayscale(0.35); cursor: default; }
+.portrait-card:disabled { cursor: default; }
+.portrait-card svg { display: block; width: 100%; height: 92px; border-radius: 10px; }
+.portrait-card .who { font-family: var(--font-accent); font-size: 1.05rem; margin-top: 0.35rem; }
+.portrait-card .hint { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; }
+.quest-lights { display: flex; gap: 10px; justify-content: center; margin: 0.4rem 0 0.8rem; }
+.quest-light {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(255, 196, 120, 0.7);
+  background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 10px rgba(255, 200, 90, 0.25);
+}
+.quest-light.ok { background: radial-gradient(circle at 35% 30%, #fff4e4, #7dff6b); box-shadow: 0 0 14px #7dff6b; }
+.quest-light.fail { background: radial-gradient(circle at 35% 30%, #ffb08a, #ff3358); box-shadow: 0 0 14px #ff3358; }
