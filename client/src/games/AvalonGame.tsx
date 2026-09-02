@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ShareCard from '../components/ShareCard'
 import { botThinkMs } from '../lib/botDelay'
 import LiveGuide from '../components/LiveGuide'
 import PortraitCard from '../components/PortraitCard'
 import {
   createAvalon, proposeTeam, voteTeam, playQuestCard, assassinate, avalonBotStep, nightInfoFor,
+  avalonCoach,
   type AvalonState,
 } from '@aether/shared'
 
@@ -53,6 +54,20 @@ export default function AvalonGame() {
   const me = state.players.find((p) => p.id === 'you')!
   const leader = state.players[state.leader]
   const need = state.teamSizes[state.questIndex]
+  const advice = useMemo(() => avalonCoach.suggestMove(state, 'you'), [state])
+  const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name || id
+  const suggestLabel = !advice || advice.action === 'wait' ? null
+    : advice.action === 'propose' ? `建议：提名 ${advice.team.map(nameOf).join('、')}`
+    : advice.action === 'vote' ? `建议：${advice.approve ? '同意' : '反对'}`
+    : advice.action === 'quest' ? `建议：任务${advice.success ? '成功' : '失败'}`
+    : advice.action === 'assassinate' ? `建议：刺杀 ${nameOf(advice.targetId)}`
+    : null
+  const canApply = !!advice && advice.action !== 'wait' && (
+    (advice.action === 'propose' && state.phase === 'team_propose' && leader.id === 'you') ||
+    (advice.action === 'vote' && state.phase === 'team_vote' && state.votes['you'] === undefined) ||
+    (advice.action === 'quest' && state.phase === 'quest' && state.proposed.includes('you') && state.questCards['you'] === undefined) ||
+    (advice.action === 'assassinate' && state.phase === 'assassinate' && me.role === 'assassin')
+  )
 
   useEffect(() => {
     setInfo(nightInfoFor(state, 'you'))
@@ -120,7 +135,18 @@ export default function AvalonGame() {
         <ShareCard gameId="avalon" title="阿瓦隆" result={state.winner === 'good' ? '正派胜利' : '奸徒胜利'} open={!!state.winner} />
       </div>
       <div className="holo-panel side-panel">
-        <LiveGuide title="这一步" lines={[info, state.phase === 'team_propose' ? '点选肖像组队。' : state.phase === 'team_vote' ? '同意或反对这支队伍。' : state.phase === 'quest' ? '出征队员选择成功或失败。' : state.phase === 'assassinate' ? '点选肖像刺杀梅林。' : '观察任务灯。']} />
+        <LiveGuide
+          title="助手"
+          lines={[info, avalonCoach.explain(state, 'you', advice)]}
+          suggestion={suggestLabel}
+          onApply={canApply ? () => {
+            if (!advice) return
+            if (advice.action === 'propose') { setPick(advice.team); setState(proposeTeam(state, 'you', advice.team)) }
+            else if (advice.action === 'vote') setState(voteTeam(state, 'you', advice.approve))
+            else if (advice.action === 'quest') setState(playQuestCard(state, 'you', advice.success))
+            else if (advice.action === 'assassinate') setState(assassinate(state, advice.targetId))
+          } : null}
+        />
         <h2>日志</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
         <p style={{ color: 'var(--muted)', fontSize: 13 }}>你的角色：{me.role}</p>

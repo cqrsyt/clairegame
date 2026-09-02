@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { playSfx } from '../lib/sfx'
 import ShareCard from '../components/ShareCard'
 import { botThinkMs } from '../lib/botDelay'
@@ -6,6 +6,7 @@ import LiveGuide from '../components/LiveGuide'
 import PortraitCard from '../components/PortraitCard'
 import {
   createWerewolf, wolfKill, seerCheck, witchAct, castVote, resolveVotes, hunterShoot, werewolfBotStep,
+  werewolfCoach,
   type WerewolfState,
 } from '@aether/shared'
 
@@ -83,10 +84,28 @@ export default function WerewolfGame() {
     return () => clearTimeout(t)
   }, [state])
 
+  const alive = state.players.filter((p) => p.alive)
   const canPickWolf = me.alive && state.phase === 'night_wolf' && me.role === 'werewolf'
   const canPickSeer = me.alive && state.phase === 'night_seer' && me.role === 'seer'
   const canVote = me.alive && (state.phase === 'day_talk' || state.phase === 'day_vote')
   const canHunt = state.phase === 'hunter_shot' && state.hunterMayShoot === 'you'
+  const advice = useMemo(() => werewolfCoach.suggestMove(state, 'you'), [state])
+  const targetName = (id: string) => state.players.find((p) => p.id === id)?.name || id
+  const suggestLabel = !advice || advice.action === 'wait' ? null
+    : advice.action === 'save' ? '建议：救人'
+    : advice.action === 'skip' ? (state.phase === 'night_witch' ? '建议：过，留药' : '建议：放弃开枪')
+    : advice.action === 'kill' ? `建议：刀 ${targetName(advice.targetId)}`
+    : advice.action === 'check' ? `建议：查验 ${targetName(advice.targetId)}`
+    : advice.action === 'vote' ? `建议：投票给 ${targetName(advice.targetId)}`
+    : advice.action === 'shoot' ? `建议：开枪带走 ${targetName(advice.targetId)}`
+    : null
+  const canApply = !!advice && advice.action !== 'wait' && (
+    (advice.action === 'kill' && canPickWolf) ||
+    (advice.action === 'check' && canPickSeer) ||
+    (advice.action === 'vote' && canVote) ||
+    (advice.action === 'shoot' && canHunt) ||
+    ((advice.action === 'save' || advice.action === 'skip') && me.alive && state.phase === 'night_witch' && me.role === 'witch')
+  )
 
   const tap = (id: string) => {
     if (canPickWolf && id !== me.id) setState(wolfKill(state, id))
@@ -138,10 +157,21 @@ export default function WerewolfGame() {
         <ShareCard gameId="werewolf" title="狼人杀" result={state.winner === 'wolves' ? '狼人胜利' : '好人胜利'} open={!!state.winner} />
       </div>
       <div className="holo-panel side-panel">
-        <LiveGuide title="这一步" lines={[
-          state.phase.startsWith('night') ? '现在是夜晚。点选肖像行动，其他人请等待。' : '白天请根据发言点选肖像投票。',
-          state.winner ? (state.winner === 'wolves' ? '狼人获胜。' : '好人获胜。') : `当前阶段：${PHASE_CN[state.phase] || state.phase}。`,
-        ]} />
+        <LiveGuide
+          title="助手"
+          lines={[werewolfCoach.explain(state, 'you', advice)]}
+          suggestion={suggestLabel}
+          onApply={canApply ? () => {
+            if (!advice) return
+            if (advice.action === 'kill') setState(wolfKill(state, advice.targetId))
+            else if (advice.action === 'check') setState(seerCheck(state, advice.targetId))
+            else if (advice.action === 'vote') setState(castVote(state, 'you', advice.targetId))
+            else if (advice.action === 'shoot') setState(hunterShoot(state, advice.targetId))
+            else if (advice.action === 'save') setState(witchAct(state, { save: true }))
+            else if (advice.action === 'skip' && state.phase === 'night_witch') setState(witchAct(state, { save: false }))
+            else if (advice.action === 'skip') setState(hunterShoot(state, null))
+          } : null}
+        />
         <h2>事件记录</h2>
         <div className="log">{state.log.map((l, i) => <div key={i}>{l}</div>)}</div>
         <button className="btn magenta" style={{ marginTop: 12 }} onClick={() => setState(createWerewolf([
