@@ -237,40 +237,153 @@ export function selfHu(state: MahjongState, playerIndex: number): MahjongState {
   };
 }
 
+function isHonor(t: Tile) {
+  return ['E', 'S', 'W', 'N', 'R', 'G', 'Wht'].includes(t);
+}
+
+function discardScore(hand: Tile[], tile: Tile, meldCount: number): number {
+  // lower = better to throw
+  const rest = hand.slice();
+  const i = rest.indexOf(tile);
+  if (i >= 0) rest.splice(i, 1);
+  const counts: Record<string, number> = {};
+  for (const x of rest) counts[x] = (counts[x] || 0) + 1;
+  let sc = 0;
+  const n = counts[tile] || 0;
+  if (n >= 2) sc += 80;
+  if (n === 1) sc += 40;
+  if (isHonor(tile) && n === 0) sc -= 30;
+  if (/^[1-9][mps]$/.test(tile)) {
+    const num = parseInt(tile[0], 10);
+    const s = tile[1];
+    const has = (k: number) => rest.includes(`${k}${s}`);
+    if (num <= 8 && has(num + 1)) sc += 25;
+    if (num >= 2 && has(num - 1)) sc += 25;
+    if (num <= 7 && has(num + 2)) sc += 12;
+    if (num >= 3 && has(num - 2)) sc += 12;
+    if (num === 1 || num === 9) sc -= 8;
+  }
+  // 听牌形状：丢这张后若接近和牌则扣分少（更该留）
+  if (canHu(rest, meldCount)) sc += 200;
+  return sc;
+}
+
 export function mahjongBotStep(state: MahjongState): MahjongState {
   if (state.phase === 'ended') return state;
   if (state.phase === 'discard') {
     const p = state.players[state.turn];
     if (!p.isBot) return state;
     if (canHu(p.hand, p.melds.length)) return selfHu(state, state.turn);
-    // discard isolated honors first
-    const hand = p.hand.slice();
-    const counts: Record<string, number> = {};
-    for (const t of hand) counts[t] = (counts[t] || 0) + 1;
-    hand.sort((a, b) => (counts[a] - counts[b]) || a.localeCompare(b));
-    return discardTile(state, state.turn, hand[0]);
+    let best = p.hand[0];
+    let bestSc = Infinity;
+    const seen = new Set<Tile>();
+    for (const tile of p.hand) {
+      if (seen.has(tile)) continue;
+      seen.add(tile);
+      const sc = discardScore(p.hand, tile, p.melds.length);
+      if (sc < bestSc) { bestSc = sc; best = tile; }
+    }
+    return discardTile(state, state.turn, best);
   }
   if (state.phase === 'react' && state.lastDiscard) {
-    // bots may pong/hu randomly
     for (let i = 0; i < 4; i++) {
       if (i === state.lastDiscard.from) continue;
       const p = state.players[i];
       if (!p.isBot) continue;
-      if (canHu([...p.hand, state.lastDiscard.tile], p.melds.length) && Math.random() > 0.2) {
-        return claimHu(state, i);
-      }
-      if (canPong(p.hand, state.lastDiscard.tile) && Math.random() > 0.5) {
-        return claimPong(state, i);
-      }
+      if (canHu([...p.hand, state.lastDiscard.tile], p.melds.length)) return claimHu(state, i);
+      if (canPong(p.hand, state.lastDiscard.tile)) return claimPong(state, i);
     }
-    // chi for next player bot
     const next = (state.lastDiscard.from + 1) % 4;
     const np = state.players[next];
     if (np.isBot) {
       const opts = canChi(np.hand, state.lastDiscard.tile);
-      if (opts.length && Math.random() > 0.6) return claimChi(state, next, opts[0]);
+      if (opts.length) {
+        // 吃掉能成顺且不拆刻子的
+        const safe = opts.find((need) => need.every((t) => np.hand.filter((x) => x === t).length < 3));
+        return claimChi(state, next, safe || opts[0]);
+      }
     }
     return passReact(state);
   }
   return state;
 }
+
+const WAN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+export function mahjongTileName(tile: Tile) {
+  if (/^[1-9]m$/.test(tile)) return WAN[Number(tile[0])] + '万';
+  if (/^[1-9]p$/.test(tile)) return WAN[Number(tile[0])] + '筒';
+  if (/^[1-9]s$/.test(tile)) return WAN[Number(tile[0])] + '条';
+  const z: Record<string, string> = { E: '东', S: '南', W: '西', N: '北', R: '红中', G: '发财', Wht: '白板' };
+  return z[tile] || tile;
+}
+
+export type MahjongAdvice =
+  | { action: 'selfHu' }
+  | { action: 'hu' }
+  | { action: 'pong' }
+  | { action: 'chi'; need: Tile[] }
+  | { action: 'discard'; tile: Tile }
+  | { action: 'pass' }
+  | { action: 'wait' };
+
+function bestDiscard(p: MahjongPlayer): Tile {
+  let best = p.hand[0];
+  let bestSc = Infinity;
+  const seen = new Set<Tile>();
+  for (const tile of p.hand) {
+    if (seen.has(tile)) continue;
+    seen.add(tile);
+    const sc = discardScore(p.hand, tile, p.melds.length);
+    if (sc < bestSc) { bestSc = sc; best = tile; }
+  }
+  return best;
+}
+
+export function mahjongSuggest(state: MahjongState, i = 0): MahjongAdvice | null {
+  if (state.phase === 'ended') return null;
+  const p = state.players[i];
+  if (state.phase === 'discard' && state.turn === i) {
+    if (canHu(p.hand, p.melds.length)) return { action: 'selfHu' };
+    return { action: 'discard', tile: bestDiscard(p) };
+  }
+  if (state.phase === 'react' && state.lastDiscard && state.lastDiscard.from !== i) {
+    const last = state.lastDiscard.tile;
+    if (canHu([...p.hand, last], p.melds.length)) return { action: 'hu' };
+    if (canPong(p.hand, last)) return { action: 'pong' };
+    const next = (state.lastDiscard.from + 1) % 4;
+    if (next === i) {
+      const opts = canChi(p.hand, last);
+      if (opts.length) {
+        const safe = opts.find((need) => need.every((t) => p.hand.filter((x) => x === t).length < 3));
+        return { action: 'chi', need: safe || opts[0] };
+      }
+    }
+    return { action: 'pass' };
+  }
+  return { action: 'wait' };
+}
+
+export const mahjongCoach = {
+  suggestMove(state: MahjongState, player = 0) { return mahjongSuggest(state, player); },
+  explain(state: MahjongState, suggested?: MahjongAdvice | null) {
+    if (state.phase === 'ended' && state.winner !== null) {
+      return state.winner === 0 ? '这一圈你胡了。可以再开一局练手。' : `${state.players[state.winner].name} 先胡。下一圈再追。`;
+    }
+    const m = suggested === undefined ? mahjongSuggest(state, 0) : suggested;
+    if (!m || m.action === 'wait') {
+      const p = state.players[state.turn];
+      return `${p.name} 正在思考。电脑每步会停一下，方便你看清牌面。`;
+    }
+    if (m.action === 'selfHu') return '手牌已经能和。建议点「自摸胡」。';
+    if (m.action === 'hu') return `桌上这张「${mahjongTileName(state.lastDiscard!.tile)}」正好能点炮。建议胡。`;
+    if (m.action === 'pong') return `手里已有两张「${mahjongTileName(state.lastDiscard!.tile)}」。建议碰下成刻子。`;
+    if (m.action === 'chi') return `建议吃，用「${m.need.map(mahjongTileName).join('、')}」配成顺子。`;
+    if (m.action === 'pass') return `这张「${mahjongTileName(state.lastDiscard!.tile)}」与你无关，建议过。`;
+    const nm = mahjongTileName(m.tile);
+    const honor = ['E', 'S', 'W', 'N', 'R', 'G', 'Wht'].includes(m.tile);
+    const why = honor ? '单张字牌很难组成面子。' : '留能成顺、成刻的牌。';
+    return `轮到你打牌。建议打出「${nm}」。${why}`;
+  },
+  legalHighlights() { return []; },
+};
+
