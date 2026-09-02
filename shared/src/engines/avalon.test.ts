@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createAvalon, proposeTeam, voteTeam, playQuestCard, isEvil } from './avalon';
+import { createAvalon, proposeTeam, voteTeam, playQuestCard, isEvil, avalonBotStep } from './avalon';
 
 describe('avalon phases', () => {
   it('creates 5-player game with roles', () => {
@@ -35,5 +35,16 @@ describe('avalon phases', () => {
       s = playQuestCard(s, id, !isEvil(p.role));
     }
     expect(s.questResults[0]).not.toBeNull();
+  });
+
+  it('bots remark after votes without outing merlin or evil', () => {
+    let s = createAvalon(Array.from({ length: 5 }, (_, i) => ({ id: `${i + 1}`, name: `K${i}`, isBot: true })));
+    s = avalonBotStep(s);
+    expect(s.phase).toBe('team_vote');
+    s = avalonBotStep(s);
+    const speech = s.log.filter((l) => l.includes('：「'));
+    expect(speech.length).toBeGreaterThan(0);
+    const joined = s.log.join('\n');
+    expect(joined).not.toMatch(/我是梅林|我是刺客|我是莫甘娜|我是奸徒/);
   });
 });

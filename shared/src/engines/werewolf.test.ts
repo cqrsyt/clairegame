@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createWerewolf, wolfKill, seerCheck, witchAct, castVote, resolveVotes } from './werewolf';
+import { createWerewolf, wolfKill, seerCheck, witchAct, werewolfBotStep, werewolfDayTalkLines } from './werewolf';
 
 describe('werewolf phases', () => {
   it('deals roles for 6 players', () => {
@@ -26,5 +26,25 @@ describe('werewolf phases', () => {
     expect(s.phase).toBe('night_witch');
     s = witchAct(s, { save: false });
     expect(['day_talk', 'hunter_shot', 'ended']).toContain(s.phase);
+  });
+
+  it('day_talk bots speak without outing wolves', () => {
+    let s = createWerewolf(Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, name: `P${i}`, isBot: true })));
+    s = { ...s, phase: 'day_talk' };
+    const talks = werewolfDayTalkLines(s);
+    expect(talks.length).toBeGreaterThan(0);
+    expect(talks.length).toBeLessThanOrEqual(3);
+    for (const line of talks) {
+      expect(line).toMatch(/：「/);
+      expect(line).not.toMatch(/我是狼|我们是狼|我是狼人/);
+    }
+    for (const p of s.players.filter((x) => x.role === 'werewolf')) {
+      const mine = talks.find((l) => l.startsWith(`${p.name}：`));
+      if (!mine) continue;
+      expect(mine).not.toMatch(/我是狼/);
+    }
+    const next = werewolfBotStep(s);
+    expect(next.phase).toBe('day_vote');
+    expect(next.log.some((l) => l.includes('：「'))).toBe(true);
   });
 });
