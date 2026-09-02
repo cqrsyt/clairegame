@@ -1,0 +1,124 @@
+/* 星域棋庭 — scoped to the monopoly play surface only */
+.mono-stage {
+  padding: 0.85rem;
+  flex: 2;
+  min-width: 280px;
+}
+.mono-stage h2 {
+  margin: 0 0 0.65rem;
+  letter-spacing: 0.08em;
+}
+.mono-court {
+  --mono-ink: #fff4e4;
+  --mono-line: rgba(255, 196, 120, 0.55);
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.28fr repeat(9, minmax(0, 1fr)) 1.28fr;
+  grid-template-rows: 1.28fr repeat(9, minmax(0, 1fr)) 1.28fr;
+  width: min(100%, 680px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 80% at 50% 18%, rgba(255, 176, 138, 0.28), transparent 55%),
+    radial-gradient(90% 70% at 80% 90%, rgba(90, 40, 90, 0.5), transparent 50%),
+    linear-gradient(180deg, #4a2c48 0%, #2a1828 55%, #1a1018 100%);
+  border: 1px solid var(--mono-line);
+  box-shadow: inset 0 0 40px rgba(255, 176, 138, 0.12), 0 0 24px rgba(255, 200, 90, 0.18);
+}
+.mono-sq {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 0;
+  padding: 3px 3px 2px;
+  border: 1px solid rgba(255, 196, 120, 0.28);
+  background: rgba(18, 8, 16, 0.45);
+  color: var(--mono-ink);
+  font-size: 0.58rem;
+  line-height: 1.15;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+.mono-sq.corner {
+  font-size: 0.72rem;
+  font-weight: 700;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background: rgba(42, 18, 28, 0.72);
+  letter-spacing: 0.04em;
+}
+.mono-sq.kind-start { background: linear-gradient(160deg, rgba(255, 200, 90, 0.35), rgba(42, 18, 28, 0.7)); color: #ffc85a; }
+.mono-sq.kind-jail { background: linear-gradient(160deg, rgba(110, 90, 160, 0.4), rgba(42, 18, 28, 0.75)); }
+.mono-sq.kind-park { background: linear-gradient(160deg, rgba(58, 154, 88, 0.35), rgba(42, 18, 28, 0.75)); }
+.mono-sq.kind-gotojail { background: linear-gradient(160deg, rgba(196, 60, 60, 0.4), rgba(42, 18, 28, 0.75)); }
+.mono-sq.here {
+  box-shadow: inset 0 0 0 2px #ffc85a;
+}
+.mono-sq.owned0 { box-shadow: inset 0 0 10px rgba(255, 51, 88, 0.45); }
+.mono-sq.owned1 { box-shadow: inset 0 0 10px rgba(90, 220, 255, 0.4); }
+.mono-sq.owned2 { box-shadow: inset 0 0 10px rgba(255, 200, 90, 0.4); }
+.mono-sq .mono-bar {
+  height: 6px;
+  margin: -3px -3px 3px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+  flex: none;
+}
+.mono-sq .mono-name {
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mono-sq .mono-meta {
+  opacity: 0.78;
+  font-size: 0.52rem;
+}
+.mono-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: auto;
+  min-height: 12px;
+}
+.mono-center {
+  grid-area: 2 / 2 / 11 / 11;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 196, 120, 0.35);
+  background: #2a1824;
+}
+.mono-center svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.mono-legend {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+.mono-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.mono-dice {
+  font-family: var(--font-display, inherit);
+  color: #ffc85a;
+  min-width: 3rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid rgba(255, 200, 90, 0.6);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .mono-sq { font-size: 0.48rem; padding: 2px; }
+  .mono-sq .mono-bar { height: 4px; }
+  .mono-sq .mono-meta { display: none; }
+}
