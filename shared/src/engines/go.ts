@@ -1,4 +1,4 @@
-/** 十九路围棋：提子、禁自杀、简单劫；无完整目数，可增强。 */
+/** 十九路围棋：提子、禁自杀、简单劫；无完整数目，可增强。 */
 export type GoColor = 1 | 2;
 export interface GoState {
   size: number;
@@ -106,7 +106,7 @@ export function passGo(s: GoState): GoState {
 }
 
 export function scoreGo(s: GoState) {
-  // 子集：子数 + 提子，贴目 3.5 给白。目数与死子判定可增强。
+  // 子集：子数 + 提子，贴目 3.5 给白。数目与死子判定可增强。
   let b = s.captures[0], w = s.captures[1] + 3.5;
   for (const row of s.board) for (const v of row) {
     if (v === 1) b++;
