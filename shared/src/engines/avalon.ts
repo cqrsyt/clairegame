@@ -204,34 +204,57 @@ export function avalonBotStep(state: AvalonState): AvalonState {
   if (state.phase === 'team_propose' && leader.isBot) {
     const need = state.teamSizes[state.questIndex];
     const pool = state.players.slice();
-    // evil prefers evil teammates
-    let team: AvalonPlayer[];
+    const byId = (a: AvalonPlayer, b: AvalonPlayer) => a.id.localeCompare(b.id);
+    let team: AvalonPlayer[] = [];
     if (isEvil(leader.role)) {
-      const evil = pool.filter((p) => isEvil(p.role));
-      const good = pool.filter((p) => !isEvil(p.role));
-      team = shuffle(evil).concat(shuffle(good)).slice(0, need);
+      const evil = pool.filter((p) => isEvil(p.role)).sort(byId);
+      const good = pool.filter((p) => !isEvil(p.role)).sort(byId);
+      team = [leader];
+      for (const e of evil) if (team.length < need && !team.includes(e)) team.push(e);
+      for (const g of good) if (team.length < need && !team.includes(g)) team.push(g);
+      team = team.slice(0, need);
+    } else if (leader.role === 'merlin') {
+      const good = pool.filter((p) => !isEvil(p.role)).sort(byId);
+      team = good.slice(0, need);
+      if (!team.includes(leader)) { team[need - 1] = leader; }
     } else {
-      team = shuffle(pool).slice(0, need);
-      if (!team.find((p) => p.id === leader.id) && need > 0) {
-        team[0] = leader;
-      }
+      team = [leader];
+      const rest = pool.filter((p) => p.id !== leader.id).sort(byId);
+      for (const p of rest) if (team.length < need) team.push(p);
     }
     return proposeTeam(state, leader.id, team.map((p) => p.id));
   }
   if (state.phase === 'team_vote') {
     for (const p of state.players) {
       if (!p.isBot || state.votes[p.id] !== undefined) continue;
-      // simple heuristic
-      const approve = Math.random() > 0.35;
+      const team = state.proposed.map((id) => state.players.find((x) => x.id === id)!);
+      const evilOn = team.filter((t) => isEvil(t.role)).length;
+      let approve = true;
+      if (p.role === 'merlin') approve = evilOn === 0;
+      else if (isEvil(p.role)) approve = evilOn > 0 || state.rejectStreak >= 4;
+      else approve = team.some((t) => t.id === p.id) || state.rejectStreak >= 3;
       state = voteTeam(state, p.id, approve);
     }
   }
   if (state.phase === 'quest') {
+    const failsNeed = state.failsRequired[state.questIndex] || 1;
+    const evilOnTeam = state.proposed.filter((id) => {
+      const pl = state.players.find((x) => x.id === id);
+      return pl && isEvil(pl.role);
+    });
+    let failsLeft = failsNeed;
     for (const id of state.proposed) {
       if (state.questCards[id] !== undefined) continue;
       const p = state.players.find((x) => x.id === id)!;
       if (!p.isBot) continue;
-      const success = isEvil(p.role) ? Math.random() > 0.4 : true;
+      let success = true;
+      if (isEvil(p.role)) {
+        // 任务失败票：能翻盘就投失败，第一轮人少时偶尔装好人
+        if (failsLeft > 0 && (state.questIndex >= 1 || evilOnTeam.length === 1)) {
+          success = false;
+          failsLeft--;
+        }
+      }
       state = playQuestCard(state, id, success);
     }
   }
@@ -239,9 +262,98 @@ export function avalonBotStep(state: AvalonState): AvalonState {
     const assassin = state.players.find((p) => p.role === 'assassin');
     if (assassin?.isBot) {
       const goods = state.players.filter((p) => !isEvil(p.role));
-      const pick = goods[Math.floor(Math.random() * goods.length)];
+      const merlin = goods.find((p) => p.role === 'merlin');
+      const percival = goods.find((p) => p.role === 'percival');
+      // 刺客不知梅林，优先刺珀西维尔（常被认成梅林）再刺梅林，避免纯随机 1/n
+      const pick = percival || merlin || goods[0];
       if (pick) state = assassinate(state, pick.id);
     }
   }
   return state;
 }
+
+const AV_PHASE: Record<string, string> = {
+  team_propose: '组队',
+  team_vote: '表决组队',
+  quest: '出征',
+  assassinate: '刺杀',
+  ended: '圣杯落定',
+};
+
+export type AvalonAdvice =
+  | { action: 'propose'; team: string[] }
+  | { action: 'vote'; approve: boolean }
+  | { action: 'quest'; success: boolean }
+  | { action: 'assassinate'; targetId: string }
+  | { action: 'wait' };
+
+function byId(a: AvalonPlayer, b: AvalonPlayer) { return a.id.localeCompare(b.id); }
+
+export function avalonSuggest(state: AvalonState, playerId = 'you'): AvalonAdvice | null {
+  const me = state.players.find((p) => p.id === playerId);
+  if (!me || state.phase === 'ended') return { action: 'wait' };
+  const need = state.teamSizes[state.questIndex];
+  const leader = state.players[state.leader];
+  if (state.phase === 'team_propose' && leader.id === me.id) {
+    const pool = state.players.slice();
+    let team: AvalonPlayer[] = [];
+    if (me.role === 'merlin') {
+      team = pool.filter((p) => !isEvil(p.role)).sort(byId).slice(0, need);
+      if (!team.some((p) => p.id === me.id) && team.length) team[team.length - 1] = me;
+    } else if (isEvil(me.role)) {
+      team = [me];
+      const evil = pool.filter((p) => isEvil(p.role) && p.id !== me.id).sort(byId);
+      const rest = pool.filter((p) => !isEvil(p.role)).sort(byId);
+      for (const e of evil) if (team.length < need) team.push(e);
+      for (const g of rest) if (team.length < need) team.push(g);
+    } else {
+      team = [me];
+      const rest = pool.filter((p) => p.id !== me.id).sort(byId);
+      for (const p of rest) if (team.length < need) team.push(p);
+    }
+    return { action: 'propose', team: team.slice(0, need).map((p) => p.id) };
+  }
+  if (state.phase === 'team_vote' && state.votes[me.id] === undefined) {
+    const team = state.proposed.map((id) => state.players.find((x) => x.id === id)!);
+    let approve = true;
+    if (me.role === 'merlin') approve = team.every((t) => !isEvil(t.role));
+    else if (isEvil(me.role)) approve = team.some((t) => isEvil(t.role)) || state.rejectStreak >= 4;
+    else approve = team.some((t) => t.id === me.id) || state.rejectStreak >= 3;
+    return { action: 'vote', approve };
+  }
+  if (state.phase === 'quest' && state.proposed.includes(me.id) && state.questCards[me.id] === undefined) {
+    const success = !isEvil(me.role);
+    return { action: 'quest', success };
+  }
+  if (state.phase === 'assassinate' && me.role === 'assassin') {
+    const goods = state.players.filter((p) => !isEvil(p.role)).sort(byId);
+    const pick = goods[0];
+    return pick ? { action: 'assassinate', targetId: pick.id } : { action: 'wait' };
+  }
+  return { action: 'wait' };
+}
+
+export const avalonCoach = {
+  suggestMove(state: AvalonState, playerId = 'you') { return avalonSuggest(state, playerId); },
+  explain(state: AvalonState, playerId = 'you', suggested?: AvalonAdvice | null) {
+    if (state.winner) return state.winner === 'good' ? '正派胜利。' : '奸徒翻盘。';
+    const me = state.players.find((p) => p.id === playerId);
+    const phase = AV_PHASE[state.phase] || state.phase;
+    const m = suggested === undefined ? avalonSuggest(state, playerId) : suggested;
+    const nameOf = (id: string) => state.players.find((p) => p.id === id)?.name || id;
+    if (!m || m.action === 'wait') return `当前阶段：${phase}。请等待轮到您行动。`;
+    if (m.action === 'propose') {
+      const names = m.team.map(nameOf).join('、');
+      return `当前是组队（需要 ${m.team.length} 人）。建议提名：${names}。点选肖像后提交。`;
+    }
+    if (m.action === 'vote') return `当前是表决组队。建议${m.approve ? '同意' : '反对'}这支队伍。`;
+    if (m.action === 'quest') {
+      if (isEvil(me?.role || 'servant')) return '您在出征队伍里。建议出失败票（只有奸徒能让任务失败）。';
+      return '您在出征队伍里。建议出成功票，正派只能让任务成功。';
+    }
+    if (m.action === 'assassinate') return `正派已完成三轮任务。建议刺杀「${nameOf(m.targetId)}」，点选肖像即可。`;
+    return `当前阶段：${phase}。`;
+  },
+  legalHighlights() { return []; },
+};
+
