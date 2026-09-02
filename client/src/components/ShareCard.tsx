@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { postHistory } from '../lib/account'
 import { playSfx } from '../lib/sfx'
 
-const SHARE = 'https://cqrsyt.github.io/clairegame'
+const SHARE = 'https://aether-table.com'
 
 export default function ShareCard({
   gameId, title, result, room, open,

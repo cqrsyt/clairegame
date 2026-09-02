@@ -15,6 +15,8 @@ import {
 } from '@aether/shared';
 
 const ORIGINS = [
+  'https://aether-table.com',
+  'https://www.aether-table.com',
   'https://cqrsyt.github.io',
   'https://clairegame.onrender.com',
   'http://localhost:5173',
@@ -39,7 +41,7 @@ app.get('/api/health', (_req, res) => res.json({ ok: true, name: '星域棋庭' 
 
 const GH_ID = process.env.GITHUB_CLIENT_ID || '';
 const GH_SECRET = process.env.GITHUB_CLIENT_SECRET || '';
-const FRONTEND = process.env.FRONTEND_URL || 'https://cqrsyt.github.io/clairegame';
+const FRONTEND = process.env.FRONTEND_URL || 'https://aether-table.com';
 
 type SessionUser = { login: string; avatar: string };
 const sessions = new Map<string, SessionUser>();
@@ -67,7 +69,7 @@ app.get('/auth/github', (req, res) => {
   if (!GH_ID || !GH_SECRET) {
     return res.status(501).json({
       ok: false,
-      error: 'host needs GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET; callback https://clairegame.onrender.com/auth/github/callback',
+      error: '主机尚未配置 GitHub OAuth。请在 Render 环境变量中设置 GITHUB_CLIENT_ID 与 GITHUB_CLIENT_SECRET，回调地址填 https://clairegame.onrender.com/auth/github/callback',
     });
   }
   const next = typeof req.query.next === 'string' ? req.query.next : FRONTEND;
@@ -126,12 +128,12 @@ type Hist = { gameId: string; result: string; at: number; nick: string };
 const history = new Map<string, Hist[]>();
 
 app.get('/api/history', (req, res) => {
-  const nick = String(req.query.nick || '').trim() || 'traveler';
+  const nick = String(req.query.nick || '').trim() || '旅人';
   res.json({ items: history.get(nick) || [] });
 });
 
 app.post('/api/history', (req, res) => {
-  const nick = String(req.body?.nick || '').trim() || 'traveler';
+  const nick = String(req.body?.nick || '').trim() || '旅人';
   const gameId = String(req.body?.gameId || 'unknown');
   const result = String(req.body?.result || '');
   const list = history.get(nick) || [];
@@ -167,7 +169,7 @@ io.on('connection', (socket) => {
       code: c,
       gameId,
       host: socket.id,
-      players: [{ id: socket.id, name: name || 'traveler', ready: true }],
+      players: [{ id: socket.id, name: name || '旅人', ready: true }],
       status: 'lobby',
       state: null,
     };
@@ -179,11 +181,11 @@ io.on('connection', (socket) => {
 
   socket.on('join_room', ({ code: c, name }, cb) => {
     const room = rooms.get(String(c || '').toUpperCase());
-    if (!room) return cb?.({ ok: false, error: 'no room' });
-    if (room.status !== 'lobby') return cb?.({ ok: false, error: 'started' });
-    if (room.players.length >= 12) return cb?.({ ok: false, error: 'full' });
+    if (!room) return cb?.({ ok: false, error: '房间不存在' });
+    if (room.status !== 'lobby') return cb?.({ ok: false, error: '对局已开始' });
+    if (room.players.length >= 12) return cb?.({ ok: false, error: '房间已满' });
     if (!room.players.some((p) => p.id === socket.id)) {
-      room.players.push({ id: socket.id, name: name || 'traveler', ready: false });
+      room.players.push({ id: socket.id, name: name || '旅人', ready: false });
     }
     socket.join(room.code);
     cb?.({ ok: true, room });
@@ -207,10 +209,10 @@ io.on('connection', (socket) => {
     else if (room.gameId === 'xiangqi') room.state = createXiangqi();
     else if (room.gameId === 'gomoku') room.state = createGomoku();
     else if (room.gameId === 'werewolf') {
-      while (guests.length < 6) guests.push({ id: `bot${guests.length}`, name: `bot${guests.length}`, isBot: true });
+      while (guests.length < 6) guests.push({ id: `bot${guests.length}`, name: `机器人${guests.length}`, isBot: true });
       room.state = createWerewolf(guests);
     } else if (room.gameId === 'avalon') {
-      while (guests.length < 5) guests.push({ id: `bot${guests.length}`, name: `knight${guests.length}`, isBot: true });
+      while (guests.length < 5) guests.push({ id: `bot${guests.length}`, name: `骑士${guests.length}`, isBot: true });
       room.state = createAvalon(guests);
     } else {
       room.state = { stub: true };
