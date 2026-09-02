@@ -1,0 +1,63 @@
+.aero-play {
+  margin-top: 1rem;
+}
+.aero-stage {
+  padding: 0.75rem;
+  min-width: min(100%, 320px);
+  flex: 1 1 420px;
+  max-width: 760px;
+}
+.aero-chess-wrap {
+  width: 100%;
+  max-width: 720px;
+}
+.aero-chess-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 18px;
+  user-select: none;
+}
+.aero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+.aero-dice {
+  font-family: var(--font-display);
+  color: var(--ivory);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--gold);
+  border-radius: 10px;
+  padding: 0.45rem 0.75rem;
+  min-width: 3.2rem;
+  text-align: center;
+  font-size: 1.15rem;
+  text-shadow: 0 0 10px rgba(255, 210, 74, 0.65);
+}
+.aero-plane {
+  cursor: default;
+}
+.aero-plane.movable {
+  cursor: pointer;
+}
+.aero-plane.movable:focus {
+  outline: none;
+}
+.aero-plane.movable:focus-visible .aero-plane-ring {
+  stroke: #fffaf0;
+  stroke-width: 3;
+}
+@keyframes aero-pulse {
+  0%, 100% { opacity: 0.55; r: 18; }
+  50% { opacity: 1; r: 22; }
+}
+.aero-pulse {
+  fill: none;
+  stroke: #fffaf0;
+  stroke-width: 2.5;
+  animation: aero-pulse 1.1s ease-in-out infinite;
+  pointer-events: none;
+}
