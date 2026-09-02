@@ -32,7 +32,7 @@ export default function App() {
   const ghLogin = () => {
     setMsg('')
     if (!oauth) {
-      setMsg('还没有接上 GitHub 登录。先用昵称即可，以后在服务器配好即可连接。')
+      setMsg('先用昵称即可，账号登录以后再开。')
       return
     }
     window.location.href = githubLoginUrl()
@@ -65,9 +65,9 @@ export default function App() {
           )}
           {user ? (
             <span className="gh-user"><img src={user.avatar} alt="" width={22} height={22} />{user.login}</span>
-          ) : (
-            <button className="btn magenta icon-btn" onClick={ghLogin}>{oauth ? '用 GitHub 登录' : '稍后连接 GitHub'}</button>
-          )}
+          ) : oauth ? (
+            <button className="btn magenta icon-btn" onClick={ghLogin}>登录</button>
+          ) : null}
         </nav>
       </header>
       {msg && <div className="banner">{msg}</div>}
