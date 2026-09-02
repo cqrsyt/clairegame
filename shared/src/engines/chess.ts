@@ -11,6 +11,7 @@ export interface ChessState {
   ep: { r: number; c: number } | null;
   winner: 'w' | 'b' | 'draw' | null;
   halfmove: number;
+  lastMove: { fr: number; fc: number; tr: number; tc: number } | null;
 }
 
 const START: string[] = [
@@ -35,6 +36,7 @@ export function createChess(): ChessState {
     ep: null,
     winner: null,
     halfmove: 0,
+    lastMove: null,
   };
 }
 
@@ -230,6 +232,7 @@ export function applyChessMove(state: ChessState, fr: number, fc: number, tr: nu
     ep,
     winner: null,
     halfmove,
+    lastMove: { fr, fc, tr, tc },
   };
   if (!skipLegal) {
     const moves = allLegalMoves(next);
@@ -244,50 +247,128 @@ const VAL: Record<string, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k:
 
 function evalBoard(state: ChessState, side: 'w' | 'b'): number {
   let score = 0;
+  let developed = 0;
   for (let r = 0; r < 8; r++)
     for (let c = 0; c < 8; c++) {
       const p = state.board[r][c];
       if (!p) continue;
-      const v = VAL[p.toLowerCase()] || 0;
+      const t = p.toLowerCase();
+      const v = VAL[t] || 0;
       const center = 3.5;
       const pos = 8 - (Math.abs(r - center) + Math.abs(c - center));
-      const s = v + pos * 2;
+      let s = v + pos * (t === 'p' || t === 'n' || t === 'b' ? 3 : 1);
+      const home = isWhite(p) ? 7 : 0;
+      if ((t === 'n' || t === 'b') && r !== home) s += 22;
+      if (t === 'k') {
+        const safeFile = c === 6 || c === 2 || c === 1 || c === 5;
+        if (safeFile && r === home) s += 45; // 易位后的王
+        else if (c >= 3 && c <= 4 && r === home) s -= 18; // 滞留中路
+        if (attackedBy(state.board, r, c, isWhite(p) ? 'b' : 'w')) s -= 60;
+      }
       score += colorOf(p) === side ? s : -s;
+      if (colorOf(p) === side && (t === 'n' || t === 'b') && r !== home) developed++;
     }
+  score += developed * 6;
+  const meCastle = side === 'w' ? (state.castling.wK || state.castling.wQ) : (state.castling.bK || state.castling.bQ);
+  if (meCastle) score += 12;
+  if (inCheck(state, side)) score -= 70;
   return score;
 }
 
+function chessBook(state: ChessState) {
+  const b = state.board;
+  const ok = (fr: number, fc: number, tr: number, tc: number) =>
+    chessLegalFrom(state, fr, fc).some((m) => m.r === tr && m.c === tc);
+  if (state.turn === 'w') {
+    if (b[6][4] === 'P' && ok(6, 4, 4, 4)) return { fr: 6, fc: 4, tr: 4, tc: 4 }; // e4
+    if (b[6][3] === 'P' && ok(6, 3, 4, 3)) return { fr: 6, fc: 3, tr: 4, tc: 3 }; // d4
+    if (b[7][6] === 'N' && ok(7, 6, 5, 5)) return { fr: 7, fc: 6, tr: 5, tc: 5 }; // Nf3
+    if (b[7][1] === 'N' && ok(7, 1, 5, 2)) return { fr: 7, fc: 1, tr: 5, tc: 2 }; // Nc3
+    if (b[7][4] === 'K' && ok(7, 4, 7, 6)) return { fr: 7, fc: 4, tr: 7, tc: 6 }; // O-O
+  } else {
+    if (b[4][4] === 'P' && b[1][4] === 'p' && ok(1, 4, 3, 4)) return { fr: 1, fc: 4, tr: 3, tc: 4 }; // e5
+    if (b[4][3] === 'P' && b[1][3] === 'p' && ok(1, 3, 3, 3)) return { fr: 1, fc: 3, tr: 3, tc: 3 }; // d5
+    if (b[0][1] === 'n' && ok(0, 1, 2, 2)) return { fr: 0, fc: 1, tr: 2, tc: 2 }; // Nc6
+    if (b[0][6] === 'n' && ok(0, 6, 2, 5)) return { fr: 0, fc: 6, tr: 2, tc: 5 }; // Nf6
+    if (b[0][4] === 'k' && ok(0, 4, 0, 6)) return { fr: 0, fc: 4, tr: 0, tc: 6 };
+  }
+  return null;
+}
+
+function seeish(state: ChessState, m: { fr: number; fc: number; tr: number; tc: number }) {
+  const vic = state.board[m.tr][m.tc];
+  const att = state.board[m.fr][m.fc];
+  if (!vic || !att) return 0;
+  const gain = VAL[vic.toLowerCase()] || 0;
+  const next = applyChessMove(state, m.fr, m.fc, m.tr, m.tc, true);
+  const opp = state.turn === 'w' ? 'b' : 'w';
+  if (attackedBy(next.board, m.tr, m.tc, opp)) return gain - (VAL[att.toLowerCase()] || 0) * 0.85;
+  return gain;
+}
+
 export function chessAI(state: ChessState): { fr: number; fc: number; tr: number; tc: number } | null {
+  if (state.winner) return null;
+  const book = chessBook(state);
+  if (book) return book;
   const moves = allLegalMoves(state);
   if (!moves.length) return null;
+  moves.sort((a, b) => seeish(state, b) - seeish(state, a));
   const me = state.turn;
   let best = moves[0];
   let bestScore = -Infinity;
-  for (const m of moves) {
+  const root = moves.slice(0, 32);
+  for (const m of root) {
     const next = applyChessMove(state, m.fr, m.fc, m.tr, m.tc);
     if (next.winner === me) return m;
-    let sc = evalBoard(next, me);
-    // one-ply opponent threat
-    const replies = allLegalMoves(next).slice(0, 24);
-    let worst = Infinity;
-    for (const r of replies) {
-      const n2 = applyChessMove(next, r.fr, r.fc, r.tr, r.tc);
+    let sc = evalBoard(next, me) + seeish(state, m) * 0.15;
+    if (state.board[m.fr][m.fc]?.toLowerCase() === 'k' && Math.abs(m.tc - m.fc) === 2) sc += 80; // 易位
+    const replies = allLegalMoves(next);
+    replies.sort((a, b) => seeish(next, b) - seeish(next, a));
+    let worst = replies.length ? Infinity : sc;
+    for (const r of replies.slice(0, 22)) {
+      const n2 = applyChessMove(next, r.fr, r.fc, r.tr, r.tc, true);
       if (n2.winner && n2.winner !== me && n2.winner !== 'draw') { worst = -99999; break; }
       worst = Math.min(worst, evalBoard(n2, me));
     }
-    if (replies.length) sc = sc * 0.4 + worst * 0.6;
+    if (replies.length) sc = worst;
     if (sc > bestScore) { bestScore = sc; best = m; }
   }
   return best;
 }
 
+export type ChessMove = { fr: number; fc: number; tr: number; tc: number };
+
+export function chessSq(r: number, c: number) {
+  return `${'abcdefgh'[c]}${8 - r}`;
+}
+
+export function chessMoveLabel(state: ChessState, m: ChessMove) {
+  const names: Record<string, string> = { p: '兵', n: '马', b: '象', r: '车', q: '后', k: '王' };
+  const p = state.board[m.fr][m.fc];
+  const name = names[(p || 'p').toLowerCase()] || '棋';
+  if (p && p.toLowerCase() === 'k' && Math.abs(m.tc - m.fc) === 2) {
+    return m.tc > m.fc ? '短易位' : '长易位';
+  }
+  return `${name}${chessSq(m.fr, m.fc)} 到 ${chessSq(m.tr, m.tc)}`;
+}
+
 export const chessCoach = {
   suggestMove(state: ChessState) { return chessAI(state); },
-  explain(state: ChessState) {
-    if (state.winner === 'draw') return '僵局，和棋。';
-    if (state.winner) return state.winner === 'w' ? '白方胜利。' : '黑方胜利。';
-    if (inCheck(state)) return '你正处于将军之中，必须应将！';
-    return state.turn === 'w' ? '白方行棋。注意中心控制与子力协调。' : '黑方行棋。寻找战术打击点。';
+  explain(state: ChessState, suggested?: ChessMove | null) {
+    if (state.winner === 'draw') return '双方无子可动，这是和棋。';
+    if (state.winner) return state.winner === 'w' ? '白方将死，这一局结束。' : '黑方将死，这一局结束。';
+    const names: Record<string, string> = { p: '兵', n: '马', b: '象', r: '车', q: '后', k: '王' };
+    const m = suggested === undefined ? chessAI(state) : suggested;
+    const who = inCheck(state) ? '将军！请先应将。' : (state.turn === 'w' ? '请您走白棋。' : '轮到黑棋。');
+    if (!m) return `${who}没有可走的棋了。`;
+    const label = chessMoveLabel(state, m);
+    const cap = state.board[m.tr][m.tc];
+    let why: string;
+    if (cap) why = `可以吃掉对方的${names[cap.toLowerCase()]}，请确认不会被白白反吃。`;
+    else if (label.includes('易位')) why = '王向旁边跳两格，车绕到内侧，王会安全许多。';
+    else if ([3, 4].includes(m.tr) && [3, 4].includes(m.tc)) why = '先占中心四格，后面出子会轻松一些。';
+    else why = '这是当前局面比较稳妥的一手。';
+    return `${who}建议走「${label}」。${why}`;
   },
   legalHighlights(state: ChessState) { return allLegalMoves(state); },
 };
