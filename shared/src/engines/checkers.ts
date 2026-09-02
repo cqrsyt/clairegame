@@ -131,19 +131,30 @@ export function moveChecker(state: CheckersState, from: string, to: string): Che
   return next;
 }
 
+function inGoal(k: string, player: CPlayer) {
+  const { r } = parse(k);
+  return player === 1 ? r <= -5 : r >= 5;
+}
+
 export function checkersAI(state: CheckersState): { from: string; to: string } | null {
   const mine = Object.keys(state.cells).filter((k) => state.cells[k] === state.turn);
   let best: { from: string; to: string } | null = null;
   let bestScore = -Infinity;
   const targetR = state.turn === 1 ? -8 : 8;
   for (const from of mine) {
-    for (const to of destinations(state, from)) {
-      const { r: fr } = parse(from);
-      const { r: tr } = parse(to);
+    const dests = destinations(state, from);
+    for (const to of dests) {
+      const { q: fq, r: fr } = parse(from);
+      const { q: tq, r: tr } = parse(to);
       const progress = state.turn === 1 ? fr - tr : tr - fr;
-      const dist = Math.abs(tr - targetR);
-      const jumpBonus = Math.abs(tr - fr) > 1 ? 3 : 0;
-      const sc = progress * 5 + jumpBonus - dist;
+      const dist = Math.abs(tr - targetR) + Math.abs(tq - (state.turn === 1 ? -tr : 0));
+      const jumpBonus = Math.abs(tr - fr) + Math.abs(tq - fq) > 1 ? 8 : 0;
+      let sc = progress * 8 + jumpBonus * Math.max(1, Math.abs(tr - fr)) - dist;
+      if (inGoal(from, state.turn) && !inGoal(to, state.turn)) sc -= 40; // 不要把自己已进营的子拉回来
+      if (inGoal(to, state.turn) && !inGoal(from, state.turn)) sc += 25;
+      // 尽量动后面的子，避免前面堵死自己
+      sc += (state.turn === 1 ? fr : -fr) * 0.8;
+      if (progress < 0) sc -= 20;
       if (sc > bestScore) {
         bestScore = sc;
         best = { from, to };
@@ -155,9 +166,16 @@ export function checkersAI(state: CheckersState): { from: string; to: string } |
 
 export const checkersCoach = {
   suggestMove(state: CheckersState) { return checkersAI(state); },
-  explain(state: CheckersState) {
-    if (state.winner) return `玩家 ${state.winner} 率先占满对角营地！`;
-    return `玩家 ${state.turn} 行动：可单步或连续跳跃。`;
+  explain(state: CheckersState, suggested?: { from: string; to: string } | null) {
+    if (state.winner) return `棋子已经占满对角营地，玩家 ${state.winner} 先到。`;
+    const m = suggested === undefined ? checkersAI(state) : suggested;
+    const who = state.turn === 1 ? '请走青色棋。' : '轮到品红棋。';
+    if (!m) return `${who}没有可走的子了。`;
+    const a = parse(m.from);
+    const b = parse(m.to);
+    const jump = Math.abs(b.r - a.r) + Math.abs(b.q - a.q) > 1;
+    const why = jump ? '这一步是跳跃，能跳就连跳，让后面的子跟上。' : '把后面的子往前送，不要堵住自己的路。';
+    return `${who}建议把棋从 (${a.q},${a.r}) 走到 (${b.q},${b.r})。${why}`;
   },
   legalHighlights(state: CheckersState) {
     if (!state.selected) return [];

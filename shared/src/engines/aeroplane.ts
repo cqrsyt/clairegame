@@ -113,25 +113,74 @@ export function movePlane(state: AeroState, planeKey: { color: AeroColor; id: nu
   };
 }
 
+function landingPos(plane: Plane, dice: number): number | null {
+  if (plane.pos === -1) return dice === 6 ? START_INDEX[plane.color] : null;
+  if (plane.pos >= 52) {
+    const n = plane.pos + dice;
+    return n <= 57 ? n : null;
+  }
+  const steps = stepsFromStart(plane.color, plane.pos) + dice;
+  if (steps >= 50) {
+    const over = steps - 50;
+    const n = 52 + over;
+    return n <= 57 ? n : null;
+  }
+  return trackPos(plane.color, steps);
+}
+
 export function aeroAI(state: AeroState): { color: AeroColor; id: number } | null {
   let s = state;
   if (s.dice === null) s = rollDice(s);
+  const dice = s.dice!;
   const opts = movablePlanes(s);
-  if (!opts.length) {
-    // pass turn
-    return null;
+  if (!opts.length) return null;
+  let best = opts[0];
+  let bestSc = -Infinity;
+  for (const p of opts) {
+    const dest = landingPos(p, dice);
+    if (dest === null) continue;
+    let sc = 0;
+    if (p.pos === -1) sc += 90; // 优先起飞
+    if (dest === 57) sc += 120; // 进终点
+    if (dest >= 52) sc += 35; // 进航道
+    // 离终点越近越好（主航道步数）
+    const progress = p.pos === -1 ? 0 : p.pos >= 52 ? 50 + (p.pos - 52) : stepsFromStart(p.color, p.pos);
+    sc += progress;
+    if (dest >= 0 && dest < 52) {
+      const hit = s.planes.some((o) => o !== p && o.color !== p.color && o.pos === dest);
+      if (hit) sc += 70; // 撞回对手
+      const stack = s.planes.some((o) => o.color === p.color && o.id !== p.id && o.pos === dest);
+      if (stack) sc += 15;
+    }
+    if (sc > bestSc) { bestSc = sc; best = p; }
   }
-  // prefer finishing, then advancing furthest
-  opts.sort((a, b) => b.pos - a.pos);
-  return { color: opts[0].color, id: opts[0].id };
+  return { color: best.color, id: best.id };
 }
 
+export type AeroAdvice =
+  | { action: 'roll' }
+  | { action: 'pass' }
+  | { action: 'move'; color: AeroColor; id: number };
+
 export const aeroCoach = {
-  suggestMove(state: AeroState) { return aeroAI(state); },
-  explain(state: AeroState) {
-    if (state.winner) return `${state.winner} 全员抵达终点！`;
-    if (state.dice === null) return `${state.turn} 方请掷骰。`;
-    return `骰点 ${state.dice}。选择一架可移动的飞机。`;
+  suggestMove(state: AeroState): AeroAdvice | null {
+    if (state.winner) return null;
+    if (state.dice === null) return { action: 'roll' };
+    const m = aeroAI(state);
+    if (!m) return { action: 'pass' };
+    return { action: 'move', color: m.color, id: m.id };
+  },
+  explain(state: AeroState, suggested?: AeroAdvice | null) {
+    if (state.winner) return `${state.winner} 的飞机都到家了。`;
+    const m = suggested === undefined ? aeroCoach.suggestMove(state) : suggested;
+    const camp: Record<AeroColor, string> = { red: '红', yellow: '黄', blue: '蓝', green: '绿' };
+    if (!m || m.action === 'roll') return `${camp[state.turn]}方请掷骰。掷到 6 才可以从机库起飞。`;
+    if (m.action === 'pass') return `骰点是 ${state.dice}。这一手没有能走的飞机，建议跳过。`;
+    const plane = state.planes.find((p) => p.color === m.color && p.id === m.id);
+    const tag = `${camp[m.color]}方 ${m.id + 1} 号机`;
+    if (plane?.pos === -1) return `骰点是 ${state.dice}。建议让${tag}从机库起飞。`;
+    if (plane && plane.pos >= 52) return `骰点是 ${state.dice}。建议走${tag}，送进航道或终点，步数要刚好。`;
+    return `骰点是 ${state.dice}。建议走${tag}；能叠到对手身上就把它打回机库。`;
   },
   legalHighlights(state: AeroState) { return movablePlanes(state); },
 };

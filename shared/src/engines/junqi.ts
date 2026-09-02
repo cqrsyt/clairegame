@@ -113,8 +113,19 @@ export function applyJunqi(s: JunqiState, fr: number, fc: number, tr: number, tc
   return { board, turn: (1 - s.turn) as 0 | 1, winner, last: { r: tr, c: tc }, log: log.slice(0, 24) };
 }
 
+function adjHas(board: JPiece[][], r: number, c: number, pred: (p: NonNullable<JPiece>) => boolean) {
+  for (const [dr, dc] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    const rr = r + dr, cc = c + dc;
+    if (!inB(rr, cc)) continue;
+    const x = board[rr][cc];
+    if (x && pred(x)) return true;
+  }
+  return false;
+}
+
 export function junqiAI(s: JunqiState) {
   const moves: { fr: number; fc: number; tr: number; tc: number; sc: number }[] = [];
+  const enemyDenR = s.turn === 0 ? 0 : 8;
   for (let r = 0; r < 9; r++)
     for (let c = 0; c < 7; c++) {
       const p = s.board[r][c];
@@ -122,9 +133,16 @@ export function junqiAI(s: JunqiState) {
       for (const m of junqiLegal(s, r, c)) {
         let sc = 0;
         const t = s.board[m.r][m.c];
-        if (t) sc += t.rank * 10;
+        const trap = isTrap(m.r, m.c);
+        if (t) sc += t.rank * 12 + 8;
         if (isDen(m.r, m.c) && !isDen(m.r, m.c, p.side)) sc += 1000;
-        sc += (p.side === 0 ? -m.r : m.r);
+        sc += (p.side === 0 ? (8 - m.r) : m.r) * 3; // 向对方兽穴推进
+        if (trap && !t) sc -= 28; // 空陷阱别随便踩
+        if (trap && t && t.side !== p.side) sc += 20; // 陷阱里的敌子可被任意棋吃
+        if (p.rank === 8 && adjHas(s.board, m.r, m.c, (x) => x.side !== p.side && x.rank === 1)) sc -= 50; // 象避开鼠
+        if (p.rank === 1 && isRiver(m.r, m.c)) sc += 14; // 鼠控河
+        if ((p.rank === 7 || p.rank === 6) && Math.abs(m.r - r) + Math.abs(m.c - c) > 1) sc += 10; // 狮虎跳河
+        if (Math.abs(m.r - enemyDenR) + Math.abs(m.c - 3) < Math.abs(r - enemyDenR) + Math.abs(c - 3)) sc += 6;
         moves.push({ fr: r, fc: c, tr: m.r, tc: m.c, sc });
       }
     }
@@ -135,9 +153,21 @@ export function junqiAI(s: JunqiState) {
 
 export const junqiCoach = {
   suggestMove(state: JunqiState) { return junqiAI(state); },
-  explain(state: JunqiState) {
-    if (state.winner !== null) return state.winner === 0 ? '红方攻入兽穴，获胜。' : '蓝方攻入兽穴，获胜。';
-    return (state.turn === 0 ? '红方走棋。' : '蓝方走棋。') + ' 鼠过河、狮虎跳河。进入对方兽穴即胜。';
+  explain(state: JunqiState, suggested?: { fr: number; fc: number; tr: number; tc: number } | null) {
+    if (state.winner !== null) return state.winner === 0 ? '红方走进对方兽穴，这一局结束。' : '蓝方走进对方兽穴，这一局结束。';
+    const m = suggested === undefined ? junqiAI(state) : suggested;
+    const who = state.turn === 0 ? '请您走红棋。' : '轮到蓝棋。';
+    if (!m) return `${who}没有可走的棋了。`;
+    const p = state.board[m.fr][m.fc];
+    const name = p ? ANIMALS[8 - p.rank] : '棋';
+    const dest = `第 ${m.tr + 1} 行第 ${m.tc + 1} 列`;
+    const t = state.board[m.tr][m.tc];
+    let why = `建议把${name}走到${dest}。`;
+    if (isDen(m.tr, m.tc) && p && !isDen(m.tr, m.tc, p.side)) why = `建议把${name}送进对方兽穴（${dest}），这一手可以取胜。`;
+    else if (t) why = `建议用${name}走到${dest}，去吃对方的${ANIMALS[8 - t.rank]}。`;
+    else if (isTrap(m.tr, m.tc)) why = `建议把${name}走进陷阱格（${dest}）时要小心，陷阱里的棋会被任何棋吃掉。`;
+    else why = `建议把${name}走到${dest}，向对方兽穴推进。`;
+    return `${who}${why}`;
   },
   legalHighlights() { return []; },
 };
