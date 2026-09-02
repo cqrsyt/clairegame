@@ -283,6 +283,7 @@ export const doudizhuCoach = {
   explain(state: DDState, suggested?: DDAdvice | null) {
     if (state.winner !== null) return `${state.players[state.winner].name} 已经出完。`;
     if (state.current !== 0) return `${state.players[state.current].name} 正在出牌。您是地主。`;
+    if (suggested === null) return `${state.players[state.current].name} 正在出牌。您是地主。`;
     const m = suggested === undefined ? doudizhuSuggest(state, 0) : suggested;
     const leading = !state.last || state.lastPlayer === 0;
     if (!m || m.action === 'pass') return '这一手压不过上家，建议点「不要」，把出牌权让给队友。';
