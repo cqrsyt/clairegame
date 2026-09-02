@@ -1,8 +1,10 @@
 /**
- * Chinese Checkers — simplified star board as hex axial coords packed into a diamond grid.
- * We use a 2-player mode on a 17x17 grid with valid star cells.
+ * 中国跳棋：121 孔六角星（中心六边形半径 4 + 六个四层三角营各 10 孔）。
+ * 轴向坐标 (q, r)，六向相邻；可单步入空，或沿同向跳过邻子并连跳。
  */
 export type CPlayer = 1 | 2;
+export type CampId = 'N' | 'NE' | 'SE' | 'S' | 'SW' | 'NW';
+
 export interface CheckersState {
   cells: Record<string, CPlayer | 0>;
   turn: CPlayer;
@@ -10,52 +12,74 @@ export interface CheckersState {
   selected: string | null;
 }
 
-/** Valid positions for 2-player Chinese checkers (simplified diamond). */
+function key(q: number, r: number) { return `${q},${r}`; }
+function parse(k: string) { const [q, r] = k.split(',').map(Number); return { q, r }; }
+
+/** 60° clockwise: (q, r) → (-r, q+r) */
+function rot60(q: number, r: number): [number, number] {
+  return [-r, q + r];
+}
+
+function northTriangle(): [number, number][] {
+  const out: [number, number][] = [];
+  for (let d = 0; d < 4; d++) {
+    const r = -8 + d;
+    for (let i = 0; i <= d; i++) out.push([-i, r]);
+  }
+  return out;
+}
+
+function buildCamps(): Record<CampId, string[]> {
+  const ids: CampId[] = ['N', 'NE', 'SE', 'S', 'SW', 'NW'];
+  const camps = {} as Record<CampId, string[]>;
+  let pts = northTriangle();
+  for (const id of ids) {
+    camps[id] = pts.map(([q, r]) => key(q, r));
+    pts = pts.map(([q, r]) => rot60(q, r));
+  }
+  return camps;
+}
+
+export const CAMP_CELLS = buildCamps();
+export const CAMP_ORDER: CampId[] = ['N', 'NE', 'SE', 'S', 'SW', 'NW'];
+
+export function campOf(k: string): CampId | 'center' {
+  for (const id of CAMP_ORDER) {
+    if (CAMP_CELLS[id].includes(k)) return id;
+  }
+  return 'center';
+}
+
 function buildStar(): Set<string> {
   const s = new Set<string>();
-  // center hex of radius 4 + two opposite triangles
-  for (let r = -4; r <= 4; r++)
-    for (let q = -4; q <= 4; q++)
-      if (Math.abs(r + q) <= 4) s.add(`${q},${r}`);
-  // top triangle (player 2 home) r=-8..-5
-  for (let r = -8; r <= -5; r++) {
-    const width = r + 9;
-    for (let i = 0; i < width; i++) {
-      const q = -i;
-      s.add(`${q},${r}`);
-    }
-  }
-  // bottom triangle (player 1 home) r=5..8
-  for (let r = 5; r <= 8; r++) {
-    const width = 9 - r;
-    for (let i = 0; i < width; i++) {
-      const q = i;
-      s.add(`${q},${r}`);
-    }
-  }
+  for (let q = -4; q <= 4; q++)
+    for (let r = -4; r <= 4; r++)
+      if (Math.abs(q + r) <= 4) s.add(key(q, r));
+  for (const cells of Object.values(CAMP_CELLS)) for (const c of cells) s.add(c);
   return s;
 }
 
 export const STAR_CELLS = buildStar();
 
-const DIRS = [[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]];
+/** 您执南营，电脑执北营；目标是对面的三角。 */
+export const START_CAMP: Record<CPlayer, CampId> = { 1: 'S', 2: 'N' };
+export const GOAL_CAMP: Record<CPlayer, CampId> = { 1: 'N', 2: 'S' };
 
-function key(q: number, r: number) { return `${q},${r}`; }
-function parse(k: string) { const [q, r] = k.split(',').map(Number); return { q, r }; }
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]];
+
+/** Pointy-top hex → pixel (origin at board centre). */
+export function hexPixel(q: number, r: number, size = 18) {
+  return {
+    x: size * Math.sqrt(3) * (q + r / 2),
+    y: size * 1.5 * r,
+  };
+}
 
 export function createCheckers(): CheckersState {
   const cells: Record<string, CPlayer | 0> = {};
   for (const c of STAR_CELLS) cells[c] = 0;
-  // player 1 bottom
-  for (let r = 5; r <= 8; r++) {
-    const width = 9 - r;
-    for (let i = 0; i < width; i++) cells[key(i, r)] = 1;
-  }
-  // player 2 top
-  for (let r = -8; r <= -5; r++) {
-    const width = r + 9;
-    for (let i = 0; i < width; i++) cells[key(-i, r)] = 2;
-  }
+  for (const c of CAMP_CELLS.S) cells[c] = 1;
+  for (const c of CAMP_CELLS.N) cells[c] = 2;
   return { cells, turn: 1, winner: 0, selected: null };
 }
 
@@ -97,22 +121,7 @@ export function destinations(state: CheckersState, from: string): string[] {
 }
 
 function homeFilled(state: CheckersState, player: CPlayer): boolean {
-  if (player === 1) {
-    for (let r = -8; r <= -5; r++) {
-      const width = r + 9;
-      for (let i = 0; i < width; i++) {
-        if (state.cells[key(-i, r)] !== 1) return false;
-      }
-    }
-    return true;
-  }
-  for (let r = 5; r <= 8; r++) {
-    const width = 9 - r;
-    for (let i = 0; i < width; i++) {
-      if (state.cells[key(i, r)] !== 2) return false;
-    }
-  }
-  return true;
+  return CAMP_CELLS[GOAL_CAMP[player]].every((c) => state.cells[c] === player);
 }
 
 export function moveChecker(state: CheckersState, from: string, to: string): CheckersState {
@@ -132,29 +141,31 @@ export function moveChecker(state: CheckersState, from: string, to: string): Che
 }
 
 function inGoal(k: string, player: CPlayer) {
-  const { r } = parse(k);
-  return player === 1 ? r <= -5 : r >= 5;
+  return CAMP_CELLS[GOAL_CAMP[player]].includes(k);
 }
 
 export function checkersAI(state: CheckersState): { from: string; to: string } | null {
   const mine = Object.keys(state.cells).filter((k) => state.cells[k] === state.turn);
   let best: { from: string; to: string } | null = null;
   let bestScore = -Infinity;
-  const targetR = state.turn === 1 ? -8 : 8;
+  const goal = CAMP_CELLS[GOAL_CAMP[state.turn]];
+  const tips = { N: { q: 0, r: -8 }, S: { q: 0, r: 8 } } as const;
+  const tip = state.turn === 1 ? tips.N : tips.S;
   for (const from of mine) {
     const dests = destinations(state, from);
     for (const to of dests) {
       const { q: fq, r: fr } = parse(from);
       const { q: tq, r: tr } = parse(to);
-      const progress = state.turn === 1 ? fr - tr : tr - fr;
-      const dist = Math.abs(tr - targetR) + Math.abs(tq - (state.turn === 1 ? -tr : 0));
-      const jumpBonus = Math.abs(tr - fr) + Math.abs(tq - fq) > 1 ? 8 : 0;
-      let sc = progress * 8 + jumpBonus * Math.max(1, Math.abs(tr - fr)) - dist;
-      if (inGoal(from, state.turn) && !inGoal(to, state.turn)) sc -= 40; // 不要把自己已进营的子拉回来
-      if (inGoal(to, state.turn) && !inGoal(from, state.turn)) sc += 25;
-      // 尽量动后面的子，避免前面堵死自己
-      sc += (state.turn === 1 ? fr : -fr) * 0.8;
-      if (progress < 0) sc -= 20;
+      const distFrom = Math.abs(fr - tip.r) + Math.abs(fq - tip.q);
+      const distTo = Math.abs(tr - tip.r) + Math.abs(tq - tip.q);
+      const progress = distFrom - distTo;
+      const jumpBonus = Math.abs(tr - fr) + Math.abs(tq - fq) > 1 ? 10 : 0;
+      let sc = progress * 10 + jumpBonus * Math.max(1, Math.abs(tr - fr));
+      if (inGoal(from, state.turn) && !inGoal(to, state.turn)) sc -= 40;
+      if (inGoal(to, state.turn) && !inGoal(from, state.turn)) sc += 28;
+      sc += (state.turn === 1 ? fr : -fr) * 0.6;
+      if (progress < 0) sc -= 22;
+      void goal;
       if (sc > bestScore) {
         bestScore = sc;
         best = { from, to };
@@ -167,15 +178,19 @@ export function checkersAI(state: CheckersState): { from: string; to: string } |
 export const checkersCoach = {
   suggestMove(state: CheckersState) { return checkersAI(state); },
   explain(state: CheckersState, suggested?: { from: string; to: string } | null) {
-    if (state.winner) return `棋子已经占满对角营地，玩家 ${state.winner} 先到。`;
-    if (suggested === null) return state.turn === 1 ? '请走青色棋。' : '请稍候，对方正在走棋。';
+    if (state.winner) {
+      return state.winner === 1
+        ? '南营的棋已经占满北营，您先到了。'
+        : '北营的棋已经占满南营，对方先到。';
+    }
+    if (suggested === null) return state.turn === 1 ? '请走您的南营棋（暖橙）。' : '请稍候，北营正在走棋。';
     const m = suggested === undefined ? checkersAI(state) : suggested;
-    const who = state.turn === 1 ? '请走青色棋。' : '轮到品红棋。';
+    const who = state.turn === 1 ? '请走您的南营棋。' : '轮到北营。';
     if (!m) return `${who}没有可走的子了。`;
     const a = parse(m.from);
     const b = parse(m.to);
     const jump = Math.abs(b.r - a.r) + Math.abs(b.q - a.q) > 1;
-    const why = jump ? '这一步是跳跃，能跳就连跳，让后面的子跟上。' : '把后面的子往前送，不要堵住自己的路。';
+    const why = jump ? '这一步是跳跃，能跳就连跳，让后面的子跟上。' : '把后面的子沿六角星往前送，不要堵住自己的路。';
     return `${who}建议把棋从 (${a.q},${a.r}) 走到 (${b.q},${b.r})。${why}`;
   },
   legalHighlights(state: CheckersState) {
