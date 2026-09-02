@@ -1,13 +1,19 @@
 import { useEffect, useState } from 'react'
-import { getSocket } from '../lib/socket'
+import { getSocket, wakeHost, HOST_WAKE_HINT } from '../lib/socket'
 import ShareCard from '../components/ShareCard'
 import { playSfx } from '../lib/sfx'
 
 export default function OnlineTable({ room, state, setState }: { room: any; state: any; setState: (s: any) => void }) {
+  const [hostHint, setHostHint] = useState('')
   useEffect(() => {
     const s = getSocket()
     const onState = (st: any) => setState(st)
+    const onFail = () => setHostHint(HOST_WAKE_HINT)
+    const onOk = () => setHostHint('')
     s.on('game_state', onState)
+    s.on('connect_error', onFail)
+    s.on('connect', onOk)
+    if (!s.connected) void wakeHost((msg) => setHostHint(msg))
     const iv = setInterval(() => {
       if (room.gameId === 'werewolf' || room.gameId === 'avalon') {
         s.emit('game_action', { code: room.code, action: 'botStep', payload: {} })
@@ -15,12 +21,23 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
     }, 1200)
     return () => {
       s.off('game_state', onState)
+      s.off('connect_error', onFail)
+      s.off('connect', onOk)
       clearInterval(iv)
     }
   }, [room.code, room.gameId, setState])
 
   const act = (action: string, payload: any = {}) => {
     getSocket().emit('game_action', { code: room.code, action, payload })
+  }
+
+  if (hostHint && !state) {
+    return (
+      <div className="page">
+        <h1>房间 {room.code}</h1>
+        <p>{hostHint}</p>
+      </div>
+    )
   }
 
   if (room.gameId === 'gomoku') {
@@ -57,7 +74,7 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
     return (
       <div className="page">
         <h1>联机狼人杀 · {room.code}</h1>
-        {!state ? <p>等待状态…</p> : (
+        {!state ? <p>{hostHint || '等待状态…'}</p> : (
           <div className="holo-panel" style={{ padding: '1rem' }}>
             <h2>{state.phase} · 夜 {state.night}</h2>
             <div className="log">{state.log?.map((l: string, i: number) => <div key={i}>{l}</div>)}</div>
@@ -89,7 +106,7 @@ export default function OnlineTable({ room, state, setState }: { room: any; stat
     return (
       <div className="page">
         <h1>联机阿瓦隆 · {room.code}</h1>
-        {!state ? <p>等待状态…</p> : (
+        {!state ? <p>{hostHint || '等待状态…'}</p> : (
           <div className="holo-panel" style={{ padding: '1rem' }}>
             <h2>{state.phase} · 任务 {state.questIndex + 1}</h2>
             <button className="btn" onClick={() => act('nightInfo')}>查看夜间信息</button>
@@ -157,14 +174,6 @@ function OnlineChess({ state, onMove }: { state: any; onMove: (fr: number, fc: n
   if (!state?.board) return <p>同步中…</p>
   const GLYPH: Record<string, string> = { K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟' }
   const lm = state.lastMove
-  const pick = (r: number, c: number) => {
-    if (!sel) setSel({ r, c })
-    else {
-      onMove(sel.r, sel.c, r, c)
-      setSel(null)
-    }
-  }
-  const fly = (r: number, c: number) => (lm && lm.tr === r && lm.tc === c ? 'piece-fly' : '')
   return (
     <div className="board-scale">
       <div className="chess-board">
@@ -173,10 +182,11 @@ function OnlineChess({ state, onMove }: { state: any; onMove: (fr: number, fc: n
             <div
               key={`${r}-${c}`}
               className={`sq ${(r + c) % 2 === 0 ? 'light' : 'dark'} ${sel?.r === r && sel?.c === c ? 'selected' : ''} ${lm && lm.tr === r && lm.tc === c ? 'last-move' : ''}`}
-              onClick={() => pick(r, c)}
-            >
-              {p ? <span className={fly(r, c)}>{GLYPH[p]}</span> : null}
-            </div>
+              onClick={() => {
+                if (!sel) setSel({ r, c })
+                else { onMove(sel.r, sel.c, r, c); setSel(null) }
+              }}
+            >{p ? <span className={lm && lm.tr === r && lm.tc === c ? 'piece-fly' : ''}>{GLYPH[p]}</span> : ''}</div>
           ))
         )}
       </div>
@@ -188,14 +198,6 @@ function OnlineXiangqi({ state, onMove }: { state: any; onMove: (fr: number, fc:
   const [sel, setSel] = useState<{ r: number; c: number } | null>(null)
   if (!state?.board) return <p>同步中…</p>
   const lm = state.lastMove
-  const pick = (r: number, c: number) => {
-    if (!sel) setSel({ r, c })
-    else {
-      onMove(sel.r, sel.c, r, c)
-      setSel(null)
-    }
-  }
-  const fly = (r: number, c: number) => (lm && lm.tr === r && lm.tc === c ? 'piece-fly' : '')
   return (
     <div className="board-scale">
       <div className="xq-board">
@@ -204,10 +206,11 @@ function OnlineXiangqi({ state, onMove }: { state: any; onMove: (fr: number, fc:
             <div
               key={`${r}-${c}`}
               className={`xq-cell ${sel?.r === r && sel?.c === c ? 'selected' : ''} ${lm && lm.tr === r && lm.tc === c ? 'last-move' : ''}`}
-              onClick={() => pick(r, c)}
-            >
-              {p ? <span className={fly(r, c)}>{p}</span> : null}
-            </div>
+              onClick={() => {
+                if (!sel) setSel({ r, c })
+                else { onMove(sel.r, sel.c, r, c); setSel(null) }
+              }}
+            >{p ? <span className={lm && lm.tr === r && lm.tc === c ? 'piece-fly' : ''}>{p}</span> : ''}</div>
           ))
         )}
       </div>
