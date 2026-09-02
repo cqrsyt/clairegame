@@ -165,6 +165,7 @@ export const gomokuCoach = {
   suggestMove(state: GomokuState) { return gomokuAI(state); },
   explain(state: GomokuState, suggested?: { r: number; c: number } | null) {
     if (state.winner) return state.winner === 1 ? '黑棋连成五子，这一局结束。' : '白棋连成五子，这一局结束。';
+    if (suggested === null) return state.turn === 1 ? '请您落黑子。' : '请稍候，对方正在落子。';
     const m = suggested === undefined ? gomokuAI(state) : suggested;
     const who = state.turn === 1 ? '请您落黑子。' : '请您落白子。';
     if (!m) return `${who}盘上已经没有空位了。`;
@@ -183,6 +184,7 @@ export const gomokuCoach = {
     else if (theirs.live4 || theirs.sleep4) why = `建议落在${pos}，拦住对方即将成型的四连。`;
     else if (mine.live3) why = `建议落在${pos}，做成活三，下一步容易变成冲四。`;
     else if (theirs.live3) why = `建议落在${pos}，先拆掉对方的活三。`;
+    else if (state.board.flat().every((c) => c === 0)) why = `建议落在${pos}，开局先占天元。`;
     else why = `建议落在${pos}，靠近己方棋形、兼顾中腹。`;
     return `${who}${why}`;
   },
