@@ -522,6 +522,8 @@ a:hover { text-shadow: var(--glow-cyan); }
 .live-guide { padding: 0.85rem 1rem; margin: 0.5rem 0 1rem; }
 .live-guide ol { margin: 0.4rem 0 0; padding-left: 1.15rem; color: var(--ivory); line-height: 1.7; }
 .live-guide h2 { margin: 0; }
+.live-guide-suggest { margin: 0.55rem 0 0; color: var(--gold); font-weight: 600; }
+.live-guide-apply { margin-top: 0.55rem; }
 .plane-lab.red, .camp-chip.red { color: var(--crimson); }
 .plane-lab.yellow { color: var(--gold); }
 .plane-lab.blue { color: var(--cyan); }
